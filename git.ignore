@@ -1,0 +1,17 @@
+# 前端
+node_modules/
+dist/
+
+# 后端
+backend/target/
+
+# IDE
+.idea/
+*.iml
+
+# 日志
+*.log
+
+# 配置
+.env
+application-prod.yml

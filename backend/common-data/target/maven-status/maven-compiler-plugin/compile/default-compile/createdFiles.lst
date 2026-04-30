@@ -1,0 +1,5 @@
+com\letsvpn\common\data\entity\UserNode.class
+com\letsvpn\common\data\mapper\UserMapper.class
+com\letsvpn\common\data\mapper\UserNodeMapper.class
+com\letsvpn\common\data\entity\User.class
+com\letsvpn\common\data\entity\UserNode$UserNodeBuilder.class

@@ -1,0 +1,50 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/letsvpn?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 90508888
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    host: 127.0.0.1
+    port: 6379
+  application:
+    name: user-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath:/mapper/*.xml
+
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    com.letsvpn.user: DEBUG # 确保你自己的包也是 DEBUG
+
+server:
+  port: 8082
+
+wireguard:
+  key-pool:
+    batch-size: 200  # 每个节点每次生成的密钥对数量
+    min-threshold: 20 # 当可用密钥对数量低于此值时，需要补充
+    replenish-interval: "0 0 4 ? * MON" # 每周一凌晨4点补充密钥池
+    check-interval: "0 0 * * * ?" # 每小时检查一次密钥池状态
+
