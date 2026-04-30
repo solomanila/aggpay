@@ -46,7 +46,7 @@ const handlePowerClick = () => {
     <div class="brand">
       <div class="brand-icon">PA</div>
       <div>
-        <p class="brand-title">演示 test</p>
+        <p class="brand-title">演示 test1111</p>
         <p class="brand-caption">多通道资金 · 实时监控</p>
       </div>
     </div>
