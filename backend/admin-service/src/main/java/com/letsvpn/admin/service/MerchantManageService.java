@@ -2,6 +2,7 @@ package com.letsvpn.admin.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.letsvpn.admin.dto.MerchantCreateResponse;
 import com.letsvpn.admin.dto.MerchantListItemDTO;
 import com.letsvpn.admin.dto.MerchantPageRequest;
 import com.letsvpn.admin.dto.MerchantSaveRequest;
@@ -9,18 +10,27 @@ import com.letsvpn.admin.entity.MerchantBalance;
 import com.letsvpn.admin.entity.MerchantChannelConfig;
 import com.letsvpn.admin.entity.MerchantOpConfig;
 import com.letsvpn.admin.entity.MerchantProfile;
+import com.letsvpn.admin.entity.SystemRole;
+import com.letsvpn.admin.entity.SystemUserAuth;
+import com.letsvpn.admin.entity.SystemUserRole;
 import com.letsvpn.admin.mapper.MerchantBalanceMapper;
 import com.letsvpn.admin.mapper.MerchantChannelConfigMapper;
 import com.letsvpn.admin.mapper.MerchantOpConfigMapper;
 import com.letsvpn.admin.mapper.MerchantProfileMapper;
+import com.letsvpn.admin.mapper.SystemRoleMapper;
+import com.letsvpn.admin.mapper.SystemUserAuthMapper;
+import com.letsvpn.admin.mapper.SystemUserRoleMapper;
+import com.letsvpn.admin.util.GoogleAuthenticatorUtil;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,6 +43,10 @@ public class MerchantManageService {
     private final MerchantChannelConfigMapper channelConfigMapper;
     private final MerchantProfileMapper profileMapper;
     private final PayServiceFacade payServiceFacade;
+    private final SystemUserAuthMapper userAuthMapper;
+    private final SystemUserRoleMapper userRoleMapper;
+    private final SystemRoleMapper roleMapper;
+    private final PasswordEncoder passwordEncoder;
 
     /** 分页查询商户列表 */
     public Page<MerchantListItemDTO> page(MerchantPageRequest req) {
@@ -125,9 +139,9 @@ public class MerchantManageService {
         return result;
     }
 
-    /** 创建商户：同时初始化 balance、channel_config（status=0 通道）、merchant_profile */
+    /** 创建商户：同时初始化 balance、channel_config（status=0 通道）、merchant_profile、system_user_auth */
     @Transactional
-    public void create(MerchantSaveRequest req) {
+    public MerchantCreateResponse create(MerchantSaveRequest req) {
         // 1. 在 pay-service 创建 pay_platform_info
         MerchantProfileDTO created = payServiceFacade.createMerchant(req.getTitle(), req.getStatus());
         Integer platformId = created.getPlatformId();
@@ -171,6 +185,52 @@ public class MerchantManageService {
         profile.setName(req.getTitle());
         profile.setStatus("ACTIVE");
         profileMapper.insert(profile);
+
+        // 6. admin.system_user_auth — 创建商户登录账号
+        long exists = userAuthMapper.selectCount(
+                new LambdaQueryWrapper<SystemUserAuth>()
+                        .eq(SystemUserAuth::getAccount, req.getAccount()));
+        if (exists > 0) {
+            throw new IllegalArgumentException("账号已存在: " + req.getAccount());
+        }
+        String secret = GoogleAuthenticatorUtil.generateSecret();
+        LocalDateTime now = LocalDateTime.now();
+        SystemUserAuth user = new SystemUserAuth();
+        user.setAccount(req.getAccount());
+        user.setName(req.getTitle());
+        user.setEmail(req.getEmail());
+        user.setStatus("ACTIVE");
+        user.setRiskLevel("LOW");
+        user.setPasswordAlgo("bcrypt");
+        user.setPasswordHash(passwordEncoder.encode(req.getPassword()));
+        user.setGoogleSecret(secret);
+        user.setGoogleEnabled(1);
+        user.setTags("[\"MERCHANT\"]");
+        user.setForceReset(0);
+        user.setPasswordUpdatedAt(now);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        userAuthMapper.insert(user);
+
+        // 7. system_user_role — 绑定 merchant 角色
+        SystemRole merchantRole = roleMapper.selectOne(
+                new LambdaQueryWrapper<SystemRole>()
+                        .eq(SystemRole::getRoleCode, "merchant"));
+        if (merchantRole != null) {
+            SystemUserRole ur = new SystemUserRole();
+            ur.setUserId(user.getId());
+            ur.setRoleId(merchantRole.getId());
+            userRoleMapper.insert(ur);
+        }
+
+        MerchantCreateResponse resp = new MerchantCreateResponse();
+        resp.setPlatformId(platformId);
+        resp.setUserId(user.getId());
+        resp.setAccount(user.getAccount());
+        resp.setGoogleSecret(secret);
+        resp.setOtpAuthUrl(GoogleAuthenticatorUtil.buildOtpAuthUrl(
+                user.getAccount(), "PayAdmin", secret));
+        return resp;
     }
 
     /** 更新商户 */

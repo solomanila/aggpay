@@ -131,6 +131,31 @@ const [firstMenu] = menuItems;
 const activeParent = ref(firstMenu?.id ?? '');
 const activeChild = ref(firstMenu?.children?.[0]?.id ?? '');
 
+// ── 动态菜单权限 ──────────────────────────────────────────────────
+const visibleRoutePaths = ref(null); // null = 未加载，fallback 到全量
+
+const filteredMenuItems = computed(() => {
+  if (!visibleRoutePaths.value) return menuItems;
+  return menuItems.filter((item) => visibleRoutePaths.value.includes('/' + item.id));
+});
+
+const fetchVisibleMenus = async () => {
+  try {
+    const { data: resp } = await http.get('/admin/system/menu/visible');
+    visibleRoutePaths.value = resp?.data ?? resp ?? [];
+  } catch {
+    visibleRoutePaths.value = null;
+  }
+};
+
+// 过滤后菜单变化时，若当前 activeParent 不在可见列表则重置
+watch(filteredMenuItems, (items) => {
+  if (items.length && !items.find((i) => i.id === activeParent.value)) {
+    activeParent.value = items[0].id;
+    activeChild.value = items[0].children?.[0]?.id ?? '';
+  }
+});
+
 const heroData = ref(heroMock);
 const homeMetrics = ref({
   operatingCountries: [],
@@ -255,6 +280,7 @@ const bootstrapAuthState = () => {
   const stored = getStoredToken();
   if (stored) {
     isAuthenticated.value = true;
+    fetchVisibleMenus();
   }
 };
 
@@ -266,6 +292,7 @@ const handleLoginSuccess = (payload) => {
   authProfile.value = payload?.profile ?? null;
   setAuthToken(token);
   isAuthenticated.value = true;
+  fetchVisibleMenus();
 };
 
 const handleLogout = async () => {
@@ -280,6 +307,7 @@ const handleLogout = async () => {
     setAuthToken('');
     authProfile.value = null;
     isAuthenticated.value = false;
+    visibleRoutePaths.value = null;
     stopSummaryPolling();
   }
 };
@@ -621,7 +649,7 @@ const handleMenuSelect = ({ parentId, childId }) => {
     />
     <div class="layout">
       <SidebarMenu
-        :menu-items="menuItems"
+        :menu-items="filteredMenuItems"
         :last-synced="alerts.lastUpdated"
         :active-parent="activeParent"
         :active-child="activeChild"

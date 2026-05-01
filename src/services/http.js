@@ -51,4 +51,24 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const code = error.response?.data?.code;
+    const url = error.config?.url || '';
+    const requiresAuth = !EXCLUDED_PATHS.some((p) => url.includes(p));
+
+    // 直接收到 401，或后端 401 未带 CORS 头导致浏览器拦截响应（error.response 为 undefined）
+    const isDirectAuth = status === 401 || code === 401;
+    const isCorsBlocked = !error.response && requiresAuth && !!getStoredToken();
+
+    if (isDirectAuth || isCorsBlocked) {
+      setAuthToken(null);
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default http;

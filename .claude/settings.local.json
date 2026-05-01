@@ -40,7 +40,11 @@
       "Bash(curl -s \"http://localhost:8084/api/pay/dashboard/dailyChannelPlatformStats?date=2026-04-19\")",
       "Bash(mysql *)",
       "Bash(/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe *)",
-      "Bash(curl -s 'http://localhost:8084/api/pay/dashboard/dailyChannelPlatformStats?date=__TRACKED_VAR__')"
+      "Bash(curl -s 'http://localhost:8084/api/pay/dashboard/dailyChannelPlatformStats?date=__TRACKED_VAR__')",
+      "Bash(git rm *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(xargs -r git rm --cached -r)",
+      "Bash(grep -E \"\\\\.java$\")"
     ]
   }
 }

@@ -39,6 +39,23 @@ All 56 components in `src/components/` are Vue 3 SFCs using `<script setup>`. Pa
 - Dashboard data auto-refreshes every 5 minutes when authenticated
 - Authentication uses OTP + QR code; token is stored in `localStorage`
 
+## 后端编码规范（强制）
+
+### Servlet API
+- 项目使用 **Spring Boot 2.x**，Servlet 包名为 `javax.servlet.*`
+- **禁止**使用 `jakarta.servlet.*`（Jakarta EE 9+ / Spring Boot 3.x 专属）
+- 凡需要 `HttpServletRequest` 的地方，import `javax.servlet.http.HttpServletRequest`
+
+### 获取当前登录用户身份
+- 网关（gateway）验证 JWT 后会向下游注入请求头 `X-User-ID`（用户ID）和 `X-User-Name`（账号）
+- **在 admin-service / pay-service 的 Controller 中，统一使用 `AuthContextHolder` 获取当前用户**：
+  ```java
+  Long userId = AuthContextHolder.getUserId();       // 可能为 null
+  Long userId = AuthContextHolder.getRequiredUserId(); // null 时抛 IllegalStateException
+  ```
+- **禁止**在下游 Controller 中重新解析 JWT（不要调用 `JwtUtils.getUserIdFromToken`）
+- `AuthContextHolder` 位于 `common-core/src/main/java/com/letsvpn/common/core/util/AuthContextHolder.java`
+
 ## 微服务数据库隔离规则（强制）
 
 - **admin-service** 只能直接访问 `admin` schema（admin.* 表）

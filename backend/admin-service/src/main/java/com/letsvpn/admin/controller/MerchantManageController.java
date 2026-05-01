@@ -1,6 +1,7 @@
 package com.letsvpn.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.letsvpn.admin.dto.MerchantCreateResponse;
 import com.letsvpn.admin.dto.MerchantListItemDTO;
 import com.letsvpn.admin.dto.MerchantPageRequest;
 import com.letsvpn.admin.dto.MerchantSaveRequest;
@@ -36,9 +37,8 @@ public class MerchantManageController {
 
     /** 创建商户 */
     @PostMapping("/create")
-    public R<Void> create(@RequestBody MerchantSaveRequest req) {
-        service.create(req);
-        return R.success(null);
+    public R<MerchantCreateResponse> create(@RequestBody MerchantSaveRequest req) {
+        return R.success(service.create(req));
     }
 
     /** 更新商户 */

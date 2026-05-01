@@ -106,6 +106,8 @@ const form = reactive({
   largePayoutRiskAmount: 500000,
   telegramGroupId: '',
   settlementNotify: 0,
+  account: '',
+  password: '',
 });
 
 const resetForm = () => {
@@ -124,7 +126,13 @@ const resetForm = () => {
   form.largePayoutRiskAmount = 500000;
   form.telegramGroupId = '';
   form.settlementNotify = 0;
+  form.account = '';
+  form.password = '';
 };
+
+// ── 创建成功凭据弹窗 ──────────────────────────────────────────────
+const credsVisible = ref(false);
+const credsData = ref({ account: '', password: '', googleSecret: '', otpAuthUrl: '' });
 
 const openCreate = () => {
   drawerMode.value = 'create';
@@ -163,6 +171,10 @@ const openEdit = async (row) => {
 
 const submitDrawer = async () => {
   if (!form.title.trim()) { drawerError.value = '名称不能为空'; return; }
+  if (drawerMode.value === 'create') {
+    if (!form.account.trim()) { drawerError.value = '登录账号不能为空'; return; }
+    if (!form.password || form.password.length < 8) { drawerError.value = '密码至少 8 位'; return; }
+  }
   drawerSaving.value = true;
   drawerError.value = '';
   try {
@@ -184,14 +196,27 @@ const submitDrawer = async () => {
       settlementNotify: form.settlementNotify,
     };
     if (drawerMode.value === 'create') {
-      await http.post('/admin/merchant/create', payload);
+      payload.account = form.account.trim();
+      payload.password = form.password;
+      const enteredPassword = form.password;
+      const { data: resp } = await http.post('/admin/merchant/create', payload);
+      const d = resp?.data ?? resp;
+      drawerVisible.value = false;
+      fetchList();
+      credsData.value = {
+        account: d?.account ?? payload.account,
+        password: enteredPassword,
+        googleSecret: d?.googleSecret ?? '',
+        otpAuthUrl: d?.otpAuthUrl ?? '',
+      };
+      credsVisible.value = true;
     } else {
       await http.put('/admin/merchant/update', payload);
+      drawerVisible.value = false;
+      fetchList();
     }
-    drawerVisible.value = false;
-    fetchList();
   } catch (e) {
-    drawerError.value = '保存失败，请重试';
+    drawerError.value = e?.response?.data?.msg || '保存失败，请重试';
   } finally {
     drawerSaving.value = false;
   }
@@ -462,6 +487,16 @@ onMounted(fetchList);
             <label class="form-label required">名称</label>
             <input v-model="form.title" class="form-input" placeholder="商户名称" />
           </div>
+          <template v-if="drawerMode === 'create'">
+            <div class="form-row">
+              <label class="form-label required">登录账号</label>
+              <input v-model="form.account" class="form-input" placeholder="如 merchant_indus" autocomplete="off" />
+            </div>
+            <div class="form-row">
+              <label class="form-label required">登录密码（至少 8 位）</label>
+              <input v-model="form.password" class="form-input" type="password" placeholder="初始密码" autocomplete="new-password" />
+            </div>
+          </template>
           <div class="form-row">
             <label class="form-label">备注</label>
             <input v-model="form.remark" class="form-input" placeholder="备注" />
@@ -525,6 +560,38 @@ onMounted(fetchList);
           <button type="button" class="btn btn-primary" :disabled="drawerSaving" @click="submitDrawer">
             {{ drawerSaving ? '保存中…' : 'Submit' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 创建成功凭据弹窗 ─────────────────────────────────────── -->
+    <div v-if="credsVisible" class="modal-overlay">
+      <div class="modal-box creds-box">
+        <div class="modal-header">
+          <span>商户账号凭据（请妥善保存）</span>
+          <button type="button" class="close-btn" @click="credsVisible = false">✕</button>
+        </div>
+        <div class="modal-body creds-body">
+          <div class="creds-row">
+            <span class="creds-label">登录账号</span>
+            <span class="creds-val">{{ credsData.account }}</span>
+          </div>
+          <div class="creds-row">
+            <span class="creds-label">登录密码</span>
+            <span class="creds-val creds-mono">{{ credsData.password }}</span>
+          </div>
+          <div class="creds-row">
+            <span class="creds-label">Google 密钥</span>
+            <span class="creds-val creds-mono">{{ credsData.googleSecret }}</span>
+          </div>
+          <div v-if="credsData.otpAuthUrl" class="creds-row creds-row-col">
+            <span class="creds-label">OTP Auth URL</span>
+            <span class="creds-val creds-mono creds-url">{{ credsData.otpAuthUrl }}</span>
+          </div>
+          <p class="creds-warn">此页面关闭后密码将无法再次查看，请立即记录。</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" @click="credsVisible = false">已记录，关闭</button>
         </div>
       </div>
     </div>
@@ -850,4 +917,22 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .tab-btn.active { background: #4a5fff; border-color: #4a5fff; color: #fff; }
 .balance-op-form { display: flex; flex-direction: column; gap: 14px; }
 .drawer-footer { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 12px; }
+
+/* ── Credentials modal ── */
+.creds-box { width: 520px; }
+.creds-body { gap: 12px; }
+.creds-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 12px 14px;
+}
+.creds-row-col { flex-direction: column; gap: 6px; }
+.creds-label { font-size: 12px; color: rgba(255,255,255,0.5); white-space: nowrap; min-width: 80px; padding-top: 1px; }
+.creds-val { font-size: 14px; color: #e8eaf6; word-break: break-all; }
+.creds-mono { font-family: monospace; letter-spacing: .04em; }
+.creds-url { font-size: 12px; color: #7b8af5; }
+.creds-warn {
+  background: rgba(231,76,60,0.12); border: 1px solid rgba(231,76,60,0.3);
+  border-radius: 8px; color: #e74c3c; font-size: 13px; margin: 4px 0 0; padding: 10px 14px;
+}
 </style>

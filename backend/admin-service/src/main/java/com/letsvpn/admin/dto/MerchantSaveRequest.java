@@ -30,4 +30,8 @@ public class MerchantSaveRequest {
     private BigDecimal largePayoutRiskAmount;
     private String telegramGroupId;
     private Integer settlementNotify;
+
+    // system_user_auth 账号信息（创建时必填）
+    private String account;
+    private String password;
 }
