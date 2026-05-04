@@ -1,12 +1,14 @@
 package com.letsvpn.pay.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import java.math.BigDecimal;
 import com.letsvpn.common.core.dto.BoardChannelDTO;
 import com.letsvpn.common.core.dto.ChannelOpenRateRow;
 import com.letsvpn.common.core.dto.ChannelPlatformStatDTO;
 import com.letsvpn.common.core.dto.ChannelSuccessRatePoint;
 import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
+import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
@@ -195,5 +197,31 @@ public class DashboardMetricsController {
     public R<List<ChannelPlatformStatDTO>> getDailyChannelPlatformStats(
             @RequestParam("date") String date) {
         return R.success(dashboardMetricsService.getDailyChannelPlatformStats(date));
+    }
+
+    // ── Merchant portal ──────────────────────────────────────────────
+
+    @GetMapping("/merchant/totalIncome")
+    public R<BigDecimal> getMerchantTotalIncome(@RequestParam("platformId") Integer platformId) {
+        return R.success(dashboardMetricsService.getMerchantTotalIncome(platformId));
+    }
+
+    @GetMapping("/merchant/platformInfo/{platformId}")
+    public R<MerchantPlatformInfoDTO> getMerchantPlatformInfo(
+            @PathVariable("platformId") Integer platformId) {
+        return R.success(dashboardMetricsService.getMerchantPlatformInfo(platformId));
+    }
+
+    @GetMapping("/merchant/orders/payin")
+    public R<Page<OrderInfoDTO>> getMerchantPayinOrders(
+            @RequestParam("platformId") Integer platformId,
+            @RequestParam(value = "orderId", required = false) String orderId,
+            @RequestParam(value = "startDate", required = false) String startDate,
+            @RequestParam(value = "endDate", required = false) String endDate,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "10") long pageSize) {
+        return R.success(dashboardMetricsService.getMerchantPayinOrders(
+                platformId, orderId, startDate, endDate, status, pageNum, pageSize));
     }
 }

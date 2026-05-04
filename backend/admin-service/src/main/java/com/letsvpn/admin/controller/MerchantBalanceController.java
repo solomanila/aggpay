@@ -63,6 +63,20 @@ public class MerchantBalanceController {
         return R.success(null);
     }
 
+    /** 订单支付成功后由 pay-service 通过 Feign 调用，将 real_amount 计入可用余额 */
+    @PostMapping("/internal/order-credit")
+    public R<Void> orderCredit(
+            @RequestParam("platformId") Integer platformId,
+            @RequestParam("amount") java.math.BigDecimal amount) {
+        MerchantBalanceOpRequest req = new MerchantBalanceOpRequest();
+        req.setPlatformId(platformId);
+        req.setCurrency("INR");
+        req.setAmount(amount);
+        req.setRemark("order_success");
+        service.recharge(req, null);
+        return R.success(null);
+    }
+
     /** 余额流水查询 */
     @GetMapping("/logs/{platformId}")
     public R<List<MerchantBalanceLog>> logs(

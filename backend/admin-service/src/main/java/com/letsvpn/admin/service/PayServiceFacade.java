@@ -253,6 +253,20 @@ public class PayServiceFacade {
         return response.getData();
     }
 
+    public Page<OrderInfoDTO> fetchMerchantPayinOrders(
+            Integer platformId, String orderId, String startDate, String endDate,
+            Integer status, long pageNum, long pageSize) {
+        R<Page<OrderInfoDTO>> response = payServiceClient.getMerchantPayinOrders(
+                platformId, orderId, startDate, endDate, status, pageNum, pageSize);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch merchant payin orders from pay-service for platformId={}", platformId);
+            Page<OrderInfoDTO> fallback = new Page<>(pageNum, pageSize, 0);
+            fallback.setRecords(Collections.emptyList());
+            return fallback;
+        }
+        return response.getData();
+    }
+
     public List<ChannelPlatformStatDTO> fetchDailyChannelPlatformStats(String date) {
         R<List<ChannelPlatformStatDTO>> response = payServiceClient.getDailyChannelPlatformStats(date);
         if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {

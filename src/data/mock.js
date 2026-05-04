@@ -86,7 +86,12 @@ export const menuItems = [
       { id: 'orders-queue', label: '代付队列', description: '队列健康度、速率与重试。' },
       { id: 'orders-batch', label: '批量代付', description: '批量导入、拆单与执行记录。' },
       { id: 'orders-approval', label: '审批流程', description: '审批链路配置与实例状态。' },
-      { id: 'orders-query', label: '查单记录', description: '查单触发、反馈与客服备注。' }
+      { id: 'orders-query', label: '查单记录', description: '查单触发、反馈与客服备注。' },
+      { id: 'merchant-orders-payin', label: '收款', description: '商户收款订单列表与状态查询。' },
+      { id: 'merchant-orders-payout', label: '出款', description: '商户出款订单列表与状态查询。' },
+      { id: 'merchant-orders-refund', label: '退款', description: '商户退款订单列表与处理状态。' },
+      { id: 'merchant-orders-bill', label: '账单', description: '商户账单汇总与对账。' },
+      { id: 'merchant-orders-download', label: '下载', description: '商户订单数据导出与下载记录。' }
     ]
   },
   {
@@ -142,6 +147,28 @@ export const menuItems = [
       { id: 'system-billing', label: '系统账单', description: '平台内部账单与结算周期。' },
       { id: 'system-users', label: '用户', description: '系统用户、角色与权限。' },
       { id: 'system-settings', label: '配置', description: '全局配置中心及灰度参数。' }
+    ]
+  },
+  {
+    id: 'withdraw',
+    label: '提现',
+    children: [
+      { id: 'withdraw-apply', label: '申请', description: '提现申请与审批状态。' }
+    ]
+  },
+  {
+    id: 'data',
+    label: '数据',
+    children: [
+      { id: 'data-report', label: '报表', description: '商户数据统计与报表导出。' }
+    ]
+  },
+  {
+    id: 'docs',
+    label: '文档',
+    children: [
+      { id: 'docs-api', label: 'API文档', description: 'API 接入文档与示例。' },
+      { id: 'docs-sign', label: '签名', description: '签名算法说明与验签工具。' }
     ]
   }
 ];

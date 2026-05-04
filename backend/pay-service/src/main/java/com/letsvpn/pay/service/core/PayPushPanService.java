@@ -9,8 +9,6 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.letsvpn.common.core.dto.ActivateVipSubscriptionRequest;
-import com.letsvpn.common.core.dto.ActivateVipSubscriptionResponse;
 import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.entity.PayConfigChannel;
 import com.letsvpn.pay.entity.PayPlatformInfo;
@@ -31,10 +29,9 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 
-import com.letsvpn.pay.client.UserVipInternalFeignClient;
+import com.letsvpn.pay.client.AdminBalanceClient;
 
 import com.letsvpn.common.core.response.R;
 
@@ -69,7 +66,7 @@ public class PayPushPanService extends BaseService {
 	PayPlatformInfoMapper payPlatformInfoMapper;
 
 	@Autowired
-	private UserVipInternalFeignClient userVipInternalFeignClient;
+	private AdminBalanceClient adminBalanceClient;
 
 //	@Scheduled(fixedDelay = 3000, initialDelay = 10 * 1000)
 //	public void payPushOrder() {
@@ -109,38 +106,21 @@ public class PayPushPanService extends BaseService {
 //		}
 
         OrderInfo info = orderInfoService.getOrderInfo(id);
-
-        // === 新增：支付成功后自动开通订阅 ===
-        try {
-            java.util.Map<java.math.BigDecimal, Long> amountPlanMap = new java.util.HashMap<>();
-            amountPlanMap.put(new java.math.BigDecimal("11.41"), 1L);
-            amountPlanMap.put(new java.math.BigDecimal("26.91"), 2L);
-            amountPlanMap.put(new java.math.BigDecimal("63.10"), 3L);
-            amountPlanMap.put(new java.math.BigDecimal("229.63"), 4L);
-
-			amountPlanMap.put(new java.math.BigDecimal("17.17"), 5L);
-			amountPlanMap.put(new java.math.BigDecimal("38.42"), 6L);
-			amountPlanMap.put(new java.math.BigDecimal("88.95"), 7L);
-			amountPlanMap.put(new java.math.BigDecimal("310.02"), 8L);
-
-
-            Long planId = amountPlanMap.get(info.getReqAmount());
-            if (planId != null) {
-
-                ActivateVipSubscriptionRequest req = ActivateVipSubscriptionRequest.builder()
-                        .userId(info.getUserId().longValue())
-                        .planId(planId)
-                        .orderId(info.getOrderId())
-                        .paymentTime(LocalDateTime.now())
-                        .build();
-                R<ActivateVipSubscriptionResponse> resp = userVipInternalFeignClient.activateVip(req);
-                log.info("自动开通VIP订阅，userId={}, planId={}, resp={}", info.getUserId(), planId, resp);
-            }
-        } catch (Exception e) {
-            log.error("自动开通VIP订阅失败", e);
+        if (info == null) {
+            log.warn("pushSuccessOrderInfo: order not found, id={}", id);
+            return;
         }
-        // === 新增结束 ===
 
+        if (Integer.valueOf(1).equals(info.getStatus())) {
+            try {
+                R<Void> resp = adminBalanceClient.creditOrderIncome(
+                        info.getPlatformId(), info.getRealAmount());
+                log.info("merchant balance credited: orderId={}, platformId={}, amount={}",
+                        info.getOrderId(), info.getPlatformId(), info.getRealAmount());
+            } catch (Exception e) {
+                log.error("merchant balance credit failed: orderId={}", info.getOrderId(), e);
+            }
+        }
 	}
 
 	void _pushSuccessOrderInfo(Long id, String reqid) {

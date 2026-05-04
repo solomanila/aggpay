@@ -25,4 +25,9 @@ public interface OrderInfoMapper extends BaseMapper<OrderInfo> {
             "AND create_time >= CURDATE()")
     BigDecimal sumTodayAmount(@Param("platformId") Integer platformId,
                               @Param("channelId") Long channelId);
+
+    @Select("SELECT COALESCE(SUM(a.real_amount), 0) FROM order_info a " +
+            "LEFT JOIN pay_config_info b ON a.pay_config_id = b.id " +
+            "WHERE a.status = 1 AND a.platform_id = #{platformId} AND b.area_type = 1")
+    BigDecimal sumTotalIncomeByPlatform(@Param("platformId") Integer platformId);
 }

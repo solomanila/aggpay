@@ -1,6 +1,7 @@
 package com.letsvpn.admin.client;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import java.math.BigDecimal;
 import com.letsvpn.common.core.dto.BoardChannelDTO;
 import com.letsvpn.common.core.dto.ChannelOpenRateRow;
 import com.letsvpn.common.core.dto.ChannelPlatformStatDTO;
@@ -11,6 +12,7 @@ import com.letsvpn.common.core.dto.DashboardCountMetric;
 import com.letsvpn.common.core.dto.DashboardSuccessRateMetric;
 import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
+import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
@@ -161,6 +163,25 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             @Override
             public R<String> resetMerchantKey(Integer platformId) {
                 return R.success(null);
+            }
+
+            @Override
+            public R<BigDecimal> getMerchantTotalIncome(Integer platformId) {
+                return R.success(BigDecimal.ZERO);
+            }
+
+            @Override
+            public R<MerchantPlatformInfoDTO> getMerchantPlatformInfo(Integer platformId) {
+                return R.success(new MerchantPlatformInfoDTO());
+            }
+
+            @Override
+            public R<Page<OrderInfoDTO>> getMerchantPayinOrders(
+                    Integer platformId, String orderId, String startDate, String endDate,
+                    Integer status, long pageNum, long pageSize) {
+                Page<OrderInfoDTO> page = new Page<>(pageNum, pageSize, 0);
+                page.setRecords(Collections.emptyList());
+                return R.success(page);
             }
 
             @Override

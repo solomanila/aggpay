@@ -19,6 +19,8 @@ public class SystemUserAuth {
     private String status;
     private String riskLevel;
     private Long ownerUserId;
+    /** 商户 platform_id（仅商户角色用户，对应 aggpay.pay_platform_info.platform_id） */
+    private Integer platformId;
     private String tags;
     private LocalDateTime lastLoginAt;
     private String lastLoginIp;

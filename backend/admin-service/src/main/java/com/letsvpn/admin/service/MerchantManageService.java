@@ -206,6 +206,7 @@ public class MerchantManageService {
         user.setGoogleSecret(secret);
         user.setGoogleEnabled(1);
         user.setTags("[\"MERCHANT\"]");
+        user.setPlatformId(platformId);
         user.setForceReset(0);
         user.setPasswordUpdatedAt(now);
         user.setCreatedAt(now);

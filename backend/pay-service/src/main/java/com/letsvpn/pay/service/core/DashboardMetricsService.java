@@ -11,6 +11,7 @@ import com.letsvpn.common.core.dto.DashboardCountMetric;
 import com.letsvpn.common.core.dto.DashboardSuccessRateMetric;
 import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
+import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
@@ -562,5 +563,61 @@ public class DashboardMetricsService {
 
     public List<com.letsvpn.common.core.dto.ChannelPlatformStatDTO> getDailyChannelPlatformStats(String date) {
         return extChannelProfitStatMapper.queryDailyStatsByPlatform(date);
+    }
+
+    public java.math.BigDecimal getMerchantTotalIncome(Integer platformId) {
+        java.math.BigDecimal result = orderInfoMapper.sumTotalIncomeByPlatform(platformId);
+        return result != null ? result : java.math.BigDecimal.ZERO;
+    }
+
+    public MerchantPlatformInfoDTO getMerchantPlatformInfo(Integer platformId) {
+        PayPlatformInfo info = payPlatformInfoMapper.selectById(platformId);
+        if (info == null) {
+            return new MerchantPlatformInfoDTO();
+        }
+        MerchantPlatformInfoDTO dto = new MerchantPlatformInfoDTO();
+        dto.setPlatformNo(info.getPlatformNo());
+        dto.setSecretKey(info.getSecretKey());
+        return dto;
+    }
+
+    public Page<OrderInfoDTO> getMerchantPayinOrders(
+            Integer platformId, String orderId, String startDate, String endDate,
+            Integer status, long pageNum, long pageSize) {
+        long pageIndex = Math.max(pageNum, 1L);
+        long size = Math.max(1L, Math.min(pageSize, 200L));
+
+        LambdaQueryWrapper<OrderInfo> wrapper = Wrappers.<OrderInfo>lambdaQuery()
+                .eq(OrderInfo::getPlatformId, platformId)
+                .orderByDesc(OrderInfo::getCreateTime);
+
+        if (orderId != null && !orderId.isBlank()) {
+            wrapper.and(w -> w.eq(OrderInfo::getOrderId, orderId.trim())
+                    .or().eq(OrderInfo::getFrontId, orderId.trim()));
+        }
+        if (status != null) {
+            wrapper.eq(OrderInfo::getStatus, status);
+        }
+        if (startDate != null && !startDate.isBlank()) {
+            try {
+                java.time.LocalDate start = java.time.LocalDate.parse(startDate);
+                wrapper.ge(OrderInfo::getCreateTime,
+                        toDate(LocalDateTime.of(start, LocalTime.MIN)));
+            } catch (Exception ignored) {}
+        }
+        if (endDate != null && !endDate.isBlank()) {
+            try {
+                java.time.LocalDate end = java.time.LocalDate.parse(endDate);
+                wrapper.lt(OrderInfo::getCreateTime,
+                        toDate(LocalDateTime.of(end.plusDays(1), LocalTime.MIN)));
+            } catch (Exception ignored) {}
+        }
+
+        Page<OrderInfo> pageResult = orderInfoMapper.selectPage(new Page<>(pageIndex, size), wrapper);
+        List<OrderInfoDTO> records = pageResult.getRecords().stream()
+                .map(this::convertToDto).collect(Collectors.toList());
+        Page<OrderInfoDTO> dtoPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
+        dtoPage.setRecords(records);
+        return dtoPage;
     }
 }

@@ -1,12 +1,14 @@
 package com.letsvpn.admin.client;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import java.math.BigDecimal;
 import com.letsvpn.common.core.dto.BoardChannelDTO;
 import com.letsvpn.common.core.dto.ChannelOpenRateRow;
 import com.letsvpn.common.core.dto.ChannelPlatformStatDTO;
 import com.letsvpn.common.core.dto.ChannelSuccessRatePoint;
 import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
+import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
@@ -131,6 +133,25 @@ public interface PayServiceClient {
 
     @PostMapping("/dashboard/merchantResetKey/{platformId}")
     R<String> resetMerchantKey(@PathVariable("platformId") Integer platformId);
+
+    // ── Merchant portal ──────────────────────────────────────────────
+
+    @GetMapping("/merchant/totalIncome")
+    R<BigDecimal> getMerchantTotalIncome(@RequestParam("platformId") Integer platformId);
+
+    @GetMapping("/merchant/platformInfo/{platformId}")
+    R<MerchantPlatformInfoDTO> getMerchantPlatformInfo(
+            @PathVariable("platformId") Integer platformId);
+
+    @GetMapping("/merchant/orders/payin")
+    R<Page<OrderInfoDTO>> getMerchantPayinOrders(
+            @RequestParam("platformId") Integer platformId,
+            @RequestParam(value = "orderId", required = false) String orderId,
+            @RequestParam(value = "startDate", required = false) String startDate,
+            @RequestParam(value = "endDate", required = false) String endDate,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "10") long pageSize);
 
     // ── Board channel endpoint ────────────────────────────────────
 

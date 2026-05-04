@@ -53,6 +53,10 @@ import PaymentsFallbackView from './components/PaymentsFallbackView.vue';
 import PaymentsIfscBlacklistView from './components/PaymentsIfscBlacklistView.vue';
 import PaymentsBlacklistView from './components/PaymentsBlacklistView.vue';
 import PaymentsProfitView from './components/PaymentsProfitView.vue';
+import MerchantDashboardView from './components/MerchantDashboardView.vue';
+import MerchantOrderPayinView from './components/MerchantOrderPayinView.vue';
+import MerchantWithdrawApplyView from './components/MerchantWithdrawApplyView.vue';
+import MerchantApiDocsView from './components/MerchantApiDocsView.vue';
 import ChannelCards from './components/ChannelCards.vue';
 import LoginPanel from './components/LoginPanel.vue';
 import http, { setAuthToken, getStoredToken } from './services/http';
@@ -132,19 +136,41 @@ const activeParent = ref(firstMenu?.id ?? '');
 const activeChild = ref(firstMenu?.children?.[0]?.id ?? '');
 
 // ── 动态菜单权限 ──────────────────────────────────────────────────
-const visibleRoutePaths = ref(null); // null = 未加载，fallback 到全量
+// null = 未加载，fallback 到 mock 全量；[] = 已加载但无权限
+const apiMenuTree = ref(null);
 
 const filteredMenuItems = computed(() => {
-  if (!visibleRoutePaths.value) return menuItems;
-  return menuItems.filter((item) => visibleRoutePaths.value.includes('/' + item.id));
+  if (!apiMenuTree.value) return menuItems;
+
+  const parentIndex = new Map(apiMenuTree.value.map((n) => [n.routePath, n]));
+
+  return menuItems
+    .filter((item) => parentIndex.has('/' + item.id))
+    .map((item) => {
+      const apiNode = parentIndex.get('/' + item.id);
+      const dbChildren = apiNode.children;
+
+      // 叶子节点：DB 中该父菜单无子项（商户仪表板等独立页）
+      if (dbChildren.length === 0) return { ...item, children: [] };
+
+      // 优先：DB routePath 与 mock id 精确匹配（admin 角色走此路径）
+      const allowedPaths = new Set(dbChildren.map((c) => c.routePath));
+      const byPath = item.children.filter((c) => allowedPaths.has('/' + c.id));
+      if (byPath.length > 0) return { ...item, children: byPath };
+
+      // 兜底：DB routePath 与 mock id 不匹配时（商户角色，DB 用 /orders/payin 等路径）
+      // 改用 DB 子菜单 name 与 mock 子菜单 label 匹配
+      const dbNames = new Set(dbChildren.map((c) => c.name).filter(Boolean));
+      return { ...item, children: item.children.filter((c) => dbNames.has(c.label)) };
+    });
 });
 
 const fetchVisibleMenus = async () => {
   try {
     const { data: resp } = await http.get('/admin/system/menu/visible');
-    visibleRoutePaths.value = resp?.data ?? resp ?? [];
+    apiMenuTree.value = resp?.data ?? resp ?? [];
   } catch {
-    visibleRoutePaths.value = null;
+    apiMenuTree.value = null;
   }
 };
 
@@ -307,7 +333,7 @@ const handleLogout = async () => {
     setAuthToken('');
     authProfile.value = null;
     isAuthenticated.value = false;
-    visibleRoutePaths.value = null;
+    apiMenuTree.value = null;
     stopSummaryPolling();
   }
 };
@@ -613,6 +639,24 @@ const isPaymentsBlacklistActive = computed(
 const isPaymentsProfitActive = computed(
   () => activeParent.value === 'payments' && activeChild.value === 'payments-profit'
 );
+// 商户独有仪表板：dashboard 下无子菜单时（商户角色），直接渲染商户看板
+const isMerchantDashboardActive = computed(() => {
+  if (activeParent.value !== 'dashboard' || activeChild.value !== '') return false;
+  const dashItem = filteredMenuItems.value.find((m) => m.id === 'dashboard');
+  return (dashItem?.children?.length ?? 0) === 0;
+});
+
+const isMerchantOrderPayinActive = computed(
+  () => activeParent.value === 'orders' && activeChild.value === 'merchant-orders-payin'
+);
+
+const isMerchantWithdrawApplyActive = computed(
+  () => activeParent.value === 'withdraw' && activeChild.value === 'withdraw-apply'
+);
+
+const isMerchantApiDocsActive = computed(
+  () => activeParent.value === 'docs' && activeChild.value === 'docs-api'
+);
 const handleMenuSelect = ({ parentId, childId }) => {
   if (!parentId && !childId) {
     activeParent.value = '';
@@ -621,7 +665,7 @@ const handleMenuSelect = ({ parentId, childId }) => {
   }
   if (parentId && parentId !== activeParent.value) {
     activeParent.value = parentId;
-    const parent = menuItems.find((item) => item.id === parentId);
+    const parent = filteredMenuItems.value.find((item) => item.id === parentId);
     activeChild.value = childId ?? parent?.children?.[0]?.id ?? '';
     return;
   }
@@ -656,7 +700,8 @@ const handleMenuSelect = ({ parentId, childId }) => {
         @select="handleMenuSelect"
       />
       <main class="main-content">
-        <DashboardOverview v-if="isDashboardOverviewActive" :data="dashboardOverviewData" />
+        <MerchantDashboardView v-if="isMerchantDashboardActive" />
+        <DashboardOverview v-else-if="isDashboardOverviewActive" :data="dashboardOverviewData" />
         <DashboardChannelView
           v-else-if="isDashboardChannelViewActive"
           :data="dashboardChannelData"
@@ -695,6 +740,9 @@ const handleMenuSelect = ({ parentId, childId }) => {
           :data="bankBookkeepingData"
         />
         <BankMappingView v-else-if="isBankMappingActive" :data="bankMappingData" />
+        <MerchantOrderPayinView v-else-if="isMerchantOrderPayinActive" />
+        <MerchantWithdrawApplyView v-else-if="isMerchantWithdrawApplyActive" />
+        <MerchantApiDocsView v-else-if="isMerchantApiDocsActive" />
         <OrdersCollectionView
           v-else-if="isOrdersCollectionActive"
           :data="ordersCollectionData"
