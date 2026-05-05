@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -86,7 +88,9 @@ public class PayReqController extends BaseController {
 				request.getRequestURL(), request.getRequestURI(), request.getQueryString(), response,userId);
 
 		if (result.getKey().compareTo(PayCallMethod.form) == 0) {
-			return result.getValue();
+			return ResponseEntity.ok()
+					.contentType(MediaType.TEXT_HTML)
+					.body(result.getValue());
 		} else if (result.getKey().compareTo(PayCallMethod.redirect) == 0) {
 			String url = result.getValue();
 			if (StrUtil.isEmpty(url)) {

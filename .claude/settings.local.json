@@ -44,7 +44,10 @@
       "Bash(git rm *)",
       "Bash(echo \"exit: $?\")",
       "Bash(xargs -r git rm --cached -r)",
-      "Bash(grep -E \"\\\\.java$\")"
+      "Bash(grep -E \"\\\\.java$\")",
+      "Bash(dir \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\pay-service\\\\src\\\\main\\\\java\\\\com\\\\letsvpn\\\\pay\")",
+      "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\")",
+      "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\gateway\\\\src\\\\main\\\\resources\")"
     ]
   }
 }

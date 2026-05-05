@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Payment</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #ebebf0;
+            min-height: 100vh;
+            padding: 0 0 32px;
+        }
+        .amount-section {
+            text-align: center;
+            padding: 44px 20px 28px;
+        }
+        .amount {
+            font-size: 42px;
+            font-weight: 700;
+            color: #1565C0;
+            letter-spacing: 1px;
+        }
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 22px 16px 16px;
+            margin: 0 14px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+        }
+        .card-title {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 14px;
+            font-weight: 500;
+            padding-left: 2px;
+        }
+        .pay-option {
+            display: flex;
+            align-items: center;
+            padding: 12px 10px;
+            border: 1px solid #f0f0f0;
+            border-radius: 13px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            background: #fff;
+        }
+        .pay-option:last-child { margin-bottom: 0; }
+        .pay-option:active { background: #f6f8ff; border-color: #dde5ff; }
+        .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+        .pay-name {
+            flex: 1;
+            font-size: 16px;
+            font-weight: 500;
+            color: #1a1a1a;
+        }
+        .arrow {
+            color: #c0c0c0;
+            font-size: 22px;
+            font-weight: 300;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="amount-section">
+        <div class="amount">{{AMOUNT}}</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Choose App to Pay</div>
+
+        <!-- Paytm -->
+        <a class="pay-option" id="paytm-btn" href="#">
+            <div class="icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="48" height="48" rx="12" fill="#002970"/>
+                    <rect x="6" y="22" width="36" height="14" rx="3" fill="#00BAF2"/>
+                    <text x="24" y="33" font-family="Arial,sans-serif" font-size="9" font-weight="bold"
+                          fill="#002970" text-anchor="middle">Paytm</text>
+                    <text x="24" y="18" font-family="Arial,sans-serif" font-size="8" font-weight="bold"
+                          fill="white" text-anchor="middle">P</text>
+                </svg>
+            </div>
+            <span class="pay-name">Paytm</span>
+            <span class="arrow">›</span>
+        </a>
+
+        <!-- PhonePe -->
+        <a class="pay-option" id="phonepe-btn" href="#">
+            <div class="icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="48" height="48" rx="12" fill="#5f259f"/>
+                    <text x="24" y="30" font-family="Arial,sans-serif" font-size="18" font-weight="bold"
+                          fill="white" text-anchor="middle">Pe</text>
+                    <circle cx="35" cy="14" r="5" fill="white"/>
+                    <path d="M30 14 Q24 14 24 20 L24 34" stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <span class="pay-name">Phonepe</span>
+            <span class="arrow">›</span>
+        </a>
+
+        <!-- GPay -->
+        <a class="pay-option" id="gpay-btn" href="#">
+            <div class="icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="48" height="48" rx="12" fill="#f8f8f8"/>
+                    <text x="8" y="29" font-family="Arial,sans-serif" font-size="13" font-weight="bold">
+                        <tspan fill="#4285F4">G</tspan><tspan fill="#555" font-size="10" dy="1"> Pay</tspan>
+                    </text>
+                </svg>
+            </div>
+            <span class="pay-name">Gpay</span>
+            <span class="arrow">›</span>
+        </a>
+
+        <!-- Other -->
+        <a class="pay-option" id="other-btn" href="#">
+            <div class="icon">
+                <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="48" height="48" rx="12" fill="#fff" stroke="#e0e0e0" stroke-width="1"/>
+                    <polygon points="24,8 36,18 36,40 12,40 12,18" fill="#43A047"/>
+                    <polygon points="18,18 30,18 30,22 18,22" fill="white"/>
+                    <polygon points="20,24 28,24 28,40 20,40" fill="white"/>
+                    <polygon points="14,6 24,0 34,6 24,12" fill="#66BB6A"/>
+                </svg>
+            </div>
+            <span class="pay-name">Other</span>
+            <span class="arrow">›</span>
+        </a>
+    </div>
+
+    <script>
+        var baseUrl = "{{PAYMENT_URL}}";
+
+        function getAppLink(scheme, pkg) {
+            if (baseUrl && baseUrl.indexOf('upi://') === 0) {
+                var upiQuery = baseUrl.substring(6);
+                return 'intent://' + upiQuery + '#Intent;scheme=' + scheme + ';package=' + pkg + ';end';
+            }
+            return baseUrl;
+        }
+
+        document.getElementById('paytm-btn').href    = getAppLink('paytmmp', 'net.one97.paytm');
+        document.getElementById('phonepe-btn').href  = getAppLink('phonepe', 'com.phonepe.app');
+        document.getElementById('gpay-btn').href     = getAppLink('tez', 'com.google.android.apps.nbu.paisa.user');
+        document.getElementById('other-btn').href    = baseUrl;
+    </script>
+</body>
+</html>
