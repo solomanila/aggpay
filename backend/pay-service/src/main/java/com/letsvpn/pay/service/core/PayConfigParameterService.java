@@ -30,7 +30,7 @@ public class PayConfigParameterService extends BaseService {
 														   PayConfigEnum payConfigEnum) {
 		QueryWrapper<PayConfigParameter> queryWrapper = new QueryWrapper<>();
 		queryWrapper.eq("pay_config_id", payConfigId);
-		queryWrapper.in("pay_config_channel_id", Arrays.asList(0L, channel));
+		//queryWrapper.in("pay_config_channel_id", Arrays.asList(0L, channel));
 		queryWrapper.eq("config_enum", payConfigEnum.name());
 		return payConfigParameterMapper.selectList(queryWrapper);
 

@@ -193,17 +193,12 @@ public class ZyaPayService extends BaseThirdService implements IPayThirdRequest,
 
     public static void main(String[] args) {
         Map<String,String> map = new HashMap<>();
-        map.put("title","pc");
-        map.put("currency","INR");
-        map.put("outTradeNo","");
-        map.put("payAmount","100");
-        map.put("callbackUrl","null/api/pay/notify3Headers/10/4");
-        map.put("phone","+916431086668");
-        map.put("firstname","micheal");
-        map.put("lastname","jackson");
-        map.put("uid","1777970140339");
-        map.put("clientIp","127.0.0.1");
-        map.put("email","jackson@gmail.com");
+        map.put("id","123456");
+        map.put("payAmount","10000");
+        map.put("payString","https://api.zyapay.com/html/SI747982376190840832");
+        map.put("payStatus","Success");
+        map.put("payTime","1778055525184");
+        map.put("outTradeNo","260506041845zya11000f");
 
 
 
@@ -219,10 +214,10 @@ public class ZyaPayService extends BaseThirdService implements IPayThirdRequest,
             }
         }
         // Append appKey=xxx at the end of the concatenated string
-        strList.add("appKey=");
+        strList.add("appKey=ba6a905f-3f83-42bf-aabb-33e042d60cc7");
         String str = String.join("&", strList);
         System.out.println(str);
         // Calculate the MD5 value in lowercase
-         DigestUtils.md5DigestAsHex(str.getBytes());
+        System.out.println(DigestUtils.md5DigestAsHex(str.getBytes()));;
     }
 }
