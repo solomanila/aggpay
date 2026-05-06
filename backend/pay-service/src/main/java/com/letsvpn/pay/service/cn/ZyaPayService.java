@@ -94,18 +94,18 @@ public class ZyaPayService extends BaseThirdService implements IPayThirdRequest,
             if (StrUtil.isEmpty(etype)) {
                 etype = PayConfigChannelExtractType.html.name();
             }
-            result.setMethod(PayCallMethod.valueOf(payConfigInfo.getCallMethod()));
-            result.setHtml(buildPaymentHtml(resultText, param));
-
 //            result.setMethod(PayCallMethod.valueOf(payConfigInfo.getCallMethod()));
-//            if (etype.compareTo(String.valueOf(PayConfigChannelExtractType.json)) == 0) {
-//                JSONObject json = JSONUtil.parseObj(resultText);
-//                String redirect = ThirdUtil.getJsonField(channel, json);
-//                if (StrUtil.isEmpty(redirect)) {
-//                    throw new WanliException(resultText);
-//                }
-//                result.setLink(redirect);
-//            }
+//            result.setHtml(buildPaymentHtml(resultText, param));
+
+            result.setMethod(PayCallMethod.valueOf(payConfigInfo.getCallMethod()));
+            if (etype.compareTo(String.valueOf(PayConfigChannelExtractType.json)) == 0) {
+                JSONObject json = JSONUtil.parseObj(resultText);
+                String redirect = ThirdUtil.getJsonField(channel, json);
+                if (StrUtil.isEmpty(redirect)) {
+                    throw new WanliException(resultText);
+                }
+                result.setLink(redirect);
+            }
 
 
 
