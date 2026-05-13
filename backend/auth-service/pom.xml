@@ -63,6 +63,22 @@
             <groupId>com.letsvpn</groupId>
             <artifactId>common-core</artifactId>
         </dependency>
+
+        <!-- jjwt: 显式声明，避免 fat-jar 打包时传递 runtime 依赖丢失 -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>com.letsvpn</groupId>
             <artifactId>common-data</artifactId>
