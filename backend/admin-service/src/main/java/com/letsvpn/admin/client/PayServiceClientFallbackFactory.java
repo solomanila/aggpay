@@ -15,6 +15,9 @@ import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
 import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import com.letsvpn.common.core.dto.PayinOrderVO;
+import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
+import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
@@ -75,7 +78,7 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             }
 
             @Override
-            public R<List<ChannelSuccessRatePoint>> getChannelSuccessRate(String date) {
+            public R<List<ChannelSuccessRatePoint>> getChannelSuccessRate(String date, Integer test, String merchant) {
                 return R.success(Collections.emptyList());
             }
 
@@ -115,11 +118,20 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             }
 
             @Override
-            public R<Page<OrderInfoDTO>> getChannelStats(
-                    String period, Integer payConfigId, long pageNum, long pageSize) {
-                Page<OrderInfoDTO> page = new Page<>(pageNum, pageSize, 0);
+            public R<Page<PayinOrderVO>> getChannelStats(
+                    Long id, String otherOrderId,
+                    String createStartTime, String createEndTime,
+                    String payStartTime, String payEndTime,
+                    Long channelId, Integer status, String account,
+                    long pageNum, long pageSize) {
+                Page<PayinOrderVO> page = new Page<>(pageNum, pageSize, 0);
                 page.setRecords(Collections.emptyList());
                 return R.success(page);
+            }
+
+            @Override
+            public R<List<BoardChannelDTO>> getAllChannelOptions() {
+                return R.success(Collections.emptyList());
             }
 
             @Override
@@ -196,6 +208,33 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
 
             @Override
             public R<List<ChannelPlatformStatDTO>> getDailyChannelPlatformStats(String date) {
+                return R.success(Collections.emptyList());
+            }
+
+            @Override
+            public R<Page<PayChannelPageRowDTO>> getPayChannelPage(
+                    Long id, String title, Integer status, Integer areaType,
+                    long pageNum, long pageSize) {
+                Page<PayChannelPageRowDTO> page = new Page<>(pageNum, pageSize, 0);
+                page.setRecords(Collections.emptyList());
+                return R.success(page);
+            }
+
+            @Override
+            public R<Page<PayinSummaryRowDTO>> getPayinSummaryPage(
+                    String startTime, Integer areaType, long pageNum, long pageSize) {
+                Page<PayinSummaryRowDTO> page = new Page<>(pageNum, pageSize, 0);
+                page.setRecords(Collections.emptyList());
+                return R.success(page);
+            }
+
+            @Override
+            public R<OrderInfoDTO> getOrderInfoById(Long id) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<List<OrderInfoDTO>> getOrdersByOrderIds(List<String> orderIds) {
                 return R.success(Collections.emptyList());
             }
         };

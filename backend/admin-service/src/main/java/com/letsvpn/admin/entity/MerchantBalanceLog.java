@@ -41,6 +41,12 @@ public class MerchantBalanceLog {
     @TableField("after_frozen")
     private BigDecimal afterFrozen;
 
+    @TableField("order_id")
+    private String orderId;
+
+    @TableField("other_order_id")
+    private String otherOrderId;
+
     @TableField("remark")
     private String remark;
 

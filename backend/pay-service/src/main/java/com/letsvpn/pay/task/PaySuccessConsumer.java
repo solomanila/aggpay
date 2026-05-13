@@ -1,6 +1,6 @@
 package com.letsvpn.pay.task;
 
-import com.letsvpn.pay.dto.PaySuccessMessage;
+import com.letsvpn.common.core.dto.PaySuccessMessage;
 import com.letsvpn.pay.service.core.PayPushPanService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;

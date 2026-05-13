@@ -13,14 +13,30 @@ import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import com.letsvpn.admin.constant.AreaTypeConstants;
+import com.letsvpn.admin.entity.SystemUserAuth;
+import com.letsvpn.admin.mapper.SystemUserAuthMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
+import com.letsvpn.common.core.dto.PayinOrderVO;
+import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -43,6 +59,7 @@ public class PayServiceFacade {
     private final PayServiceClient payServiceClient;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final SystemUserAuthMapper systemUserAuthMapper;
 
     public String pingPayService(String echo) {
         return payServiceClient.ping(echo);
@@ -107,8 +124,8 @@ public class PayServiceFacade {
         return response.getData();
     }
 
-    public List<ChannelSuccessRatePoint> fetchChannelSuccessRate(String date) {
-        R<List<ChannelSuccessRatePoint>> response = payServiceClient.getChannelSuccessRate(date);
+    public List<ChannelSuccessRatePoint> fetchChannelSuccessRate(String date, Integer test, String merchant) {
+        R<List<ChannelSuccessRatePoint>> response = payServiceClient.getChannelSuccessRate(date, test, merchant);
         if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
             log.warn("Failed to fetch channel success rate from pay-service, returning empty list");
             return Collections.emptyList();
@@ -160,14 +177,29 @@ public class PayServiceFacade {
         return response.getData();
     }
 
-    public Page<OrderInfoDTO> fetchChannelStats(String period, Integer payConfigId, long pageNum, long pageSize) {
-        R<Page<OrderInfoDTO>> response =
-                payServiceClient.getChannelStats(period, payConfigId, pageNum, pageSize);
+    public Page<PayinOrderVO> fetchChannelStats(
+            Long id, String otherOrderId,
+            String createStartTime, String createEndTime,
+            String payStartTime, String payEndTime,
+            Long channelId, Integer status, String account,
+            long pageNum, long pageSize) {
+        R<Page<PayinOrderVO>> response = payServiceClient.getChannelStats(
+                id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize);
         if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
             log.warn("Failed to fetch channel stats from pay-service, returning empty page");
-            Page<OrderInfoDTO> fallback = new Page<>(pageNum, pageSize, 0);
+            Page<PayinOrderVO> fallback = new Page<>(pageNum, pageSize, 0);
             fallback.setRecords(Collections.emptyList());
             return fallback;
+        }
+        return response.getData();
+    }
+
+    public List<BoardChannelDTO> fetchAllChannelOptions() {
+        R<List<BoardChannelDTO>> response = payServiceClient.getAllChannelOptions();
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch all channel options from pay-service");
+            return Collections.emptyList();
         }
         return response.getData();
     }
@@ -265,6 +297,123 @@ public class PayServiceFacade {
             return fallback;
         }
         return response.getData();
+    }
+
+    public OrderInfoDTO fetchOrderInfoById(Long id) {
+        R<OrderInfoDTO> response = payServiceClient.getOrderInfoById(id);
+        if (response == null || !R.isSuccess(response.getCode())) {
+            log.warn("Failed to fetch orderInfo by id={} from pay-service", id);
+            return null;
+        }
+        return response.getData();
+    }
+
+    public List<OrderInfoDTO> fetchOrdersByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) return Collections.emptyList();
+        R<List<OrderInfoDTO>> response = payServiceClient.getOrdersByOrderIds(orderIds);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch orders by orderIds from pay-service");
+            return Collections.emptyList();
+        }
+        return response.getData();
+    }
+
+    public Page<PayChannelPageRowDTO> fetchPayChannelPage(
+            Long id, String title, Integer status, String currency, long pageNum, long pageSize) {
+        Integer areaType = null;
+        if (StringUtils.hasText(currency)) {
+            areaType = AreaTypeConstants.MAP.entrySet().stream()
+                    .filter(e -> currency.equals(e.getValue().currencyCode))
+                    .map(Map.Entry::getKey)
+                    .findFirst().orElse(null);
+            if (areaType == null) {
+                Page<PayChannelPageRowDTO> empty = new Page<>(pageNum, pageSize, 0);
+                empty.setRecords(Collections.emptyList());
+                return empty;
+            }
+        }
+        R<Page<PayChannelPageRowDTO>> response =
+                payServiceClient.getPayChannelPage(id, title, status, areaType, pageNum, pageSize);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch pay channel page from pay-service");
+            Page<PayChannelPageRowDTO> fallback = new Page<>(pageNum, pageSize, 0);
+            fallback.setRecords(Collections.emptyList());
+            return fallback;
+        }
+        Page<PayChannelPageRowDTO> page = response.getData();
+        if (page.getRecords() != null) {
+            page.getRecords().forEach(r -> {
+                if (r.getAreaType() != null) {
+                    r.setCurrency(AreaTypeConstants.currencyCode(r.getAreaType()));
+                }
+            });
+        }
+        return page;
+    }
+
+    public Page<PayinSummaryRowDTO> fetchPayinSummaryPage(
+            String dateType, Integer areaType, long pageNum, long pageSize) {
+        String startTime = resolveStartTime(dateType);
+        R<Page<PayinSummaryRowDTO>> response =
+                payServiceClient.getPayinSummaryPage(startTime, areaType, pageNum, pageSize);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch payin summary page from pay-service");
+            Page<PayinSummaryRowDTO> fallback = new Page<>(pageNum, pageSize, 0);
+            fallback.setRecords(Collections.emptyList());
+            return fallback;
+        }
+        Page<PayinSummaryRowDTO> page = response.getData();
+        List<PayinSummaryRowDTO> records = page.getRecords();
+        if (records != null && !records.isEmpty()) {
+            Set<Integer> platformIds = records.stream()
+                    .map(PayinSummaryRowDTO::getPlatformId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (!platformIds.isEmpty()) {
+                List<SystemUserAuth> authList = systemUserAuthMapper.selectList(
+                        Wrappers.<SystemUserAuth>lambdaQuery()
+                                .in(SystemUserAuth::getPlatformId, platformIds)
+                                .select(SystemUserAuth::getPlatformId, SystemUserAuth::getAccount));
+                Map<Integer, String> accountMap = authList == null ? Collections.emptyMap()
+                        : authList.stream()
+                                .filter(a -> a.getPlatformId() != null)
+                                .collect(Collectors.toMap(SystemUserAuth::getPlatformId,
+                                        a -> a.getAccount() != null ? a.getAccount() : "",
+                                        (x, y) -> x));
+                records.forEach(r -> {
+                    if (r.getPlatformId() != null) {
+                        r.setMerchant(accountMap.getOrDefault(r.getPlatformId(), ""));
+                    }
+                });
+            }
+        }
+        return page;
+    }
+
+    private static final DateTimeFormatter DT_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private String resolveStartTime(String dateType) {
+        if (!StringUtils.hasText(dateType)) return null;
+        LocalDate today = LocalDate.now();
+        LocalDate start;
+        switch (dateType) {
+            case "today":  start = today; break;
+            case "week":   start = today.with(DayOfWeek.MONDAY); break;
+            case "month":  start = today.withDayOfMonth(1); break;
+            case "2m":     start = today.minusMonths(2); break;
+            default:       return null;
+        }
+        return LocalDateTime.of(start, LocalTime.MIDNIGHT).format(DT_FMT);
+    }
+
+    private Integer resolveCurrencyToAreaType(String currencyCode) {
+        if (!StringUtils.hasText(currencyCode)) return null;
+        return AreaTypeConstants.MAP.entrySet().stream()
+                .filter(e -> currencyCode.equals(e.getValue().currencyCode))
+                .map(java.util.Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
     }
 
     public List<ChannelPlatformStatDTO> fetchDailyChannelPlatformStats(String date) {

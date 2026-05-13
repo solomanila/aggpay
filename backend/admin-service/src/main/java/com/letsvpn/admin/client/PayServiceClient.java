@@ -12,6 +12,9 @@ import com.letsvpn.common.core.dto.MerchantPlatformInfoDTO;
 import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import com.letsvpn.common.core.dto.PayinOrderVO;
+import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
+import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
@@ -58,7 +61,9 @@ public interface PayServiceClient {
 
     @GetMapping("/dashboard/channelSuccessRate")
     R<List<ChannelSuccessRatePoint>> getChannelSuccessRate(
-            @RequestParam(value = "date", defaultValue = "today") String date);
+            @RequestParam(value = "date", defaultValue = "today") String date,
+            @RequestParam(value = "test", required = false) Integer test,
+            @RequestParam(value = "merchant", required = false) String merchant);
 
     @GetMapping("/dashboard/channelConfigList")
     R<Page<PayConfigChannelDTO>> getChannelConfigList(
@@ -91,11 +96,21 @@ public interface PayServiceClient {
             @RequestParam(value = "pageSize", defaultValue = "20") long pageSize);
 
     @GetMapping("/dashboard/channelStat")
-    R<Page<OrderInfoDTO>> getChannelStats(
-            @RequestParam(value = "period", defaultValue = "today") String period,
-            @RequestParam(value = "payConfigId", required = false) Integer payConfigId,
+    R<Page<PayinOrderVO>> getChannelStats(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
+            @RequestParam(value = "createStartTime", required = false) String createStartTime,
+            @RequestParam(value = "createEndTime", required = false) String createEndTime,
+            @RequestParam(value = "payStartTime", required = false) String payStartTime,
+            @RequestParam(value = "payEndTime", required = false) String payEndTime,
+            @RequestParam(value = "channelId", required = false) Long channelId,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
             @RequestParam(value = "pageSize", defaultValue = "20") long pageSize);
+
+    @GetMapping("/dashboard/allChannelOptions")
+    R<List<BoardChannelDTO>> getAllChannelOptions();
 
     // ── Merchant profile endpoints ────────────────────────────────
 
@@ -163,4 +178,26 @@ public interface PayServiceClient {
 
     @GetMapping("/dashboard/dailyChannelPlatformStats")
     R<List<ChannelPlatformStatDTO>> getDailyChannelPlatformStats(@RequestParam("date") String date);
+
+    @GetMapping("/dashboard/payChannelPage")
+    R<Page<PayChannelPageRowDTO>> getPayChannelPage(
+            @RequestParam(value = "id",       required = false) Long id,
+            @RequestParam(value = "title",    required = false) String title,
+            @RequestParam(value = "status",   required = false) Integer status,
+            @RequestParam(value = "areaType", required = false) Integer areaType,
+            @RequestParam(value = "pageNum",  defaultValue = "1")  long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "20") long pageSize);
+
+    @GetMapping("/dashboard/payinSummaryPage")
+    R<Page<PayinSummaryRowDTO>> getPayinSummaryPage(
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "areaType",  required = false) Integer areaType,
+            @RequestParam(value = "pageNum",   defaultValue = "1")  long pageNum,
+            @RequestParam(value = "pageSize",  defaultValue = "20") long pageSize);
+
+    @GetMapping("/dashboard/orderById")
+    R<OrderInfoDTO> getOrderInfoById(@RequestParam("id") Long id);
+
+    @PostMapping("/dashboard/ordersByOrderIds")
+    R<List<OrderInfoDTO>> getOrdersByOrderIds(@RequestBody List<String> orderIds);
 }

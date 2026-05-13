@@ -2,14 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import http from '../services/http';
 
-const { data } = defineProps({
-  data: {
-    type: Object,
-    required: true
-  }
+defineProps({
+  data: { type: Object, required: true }
 });
 
-// ── PayIn Link Open Rate table ───────────────────────────────────
+// ── PayIn Link Open Rate ─────────────────────────────────────────
 const orCurrency = ref('INR');
 const orMinutes = ref(30);
 const orMinutesInput = ref('30');
@@ -17,9 +14,8 @@ const orLoading = ref(false);
 const orError = ref('');
 const orRows = ref([]);
 
-// sort state
 const orSortKey = ref('orderNum');
-const orSortDir = ref(-1); // -1 desc, 1 asc
+const orSortDir = ref(-1);
 
 const orSortedRows = computed(() => {
   const key = orSortKey.value;
@@ -65,9 +61,7 @@ const clearMinutes = () => {
 
 const applyMinutes = () => {
   const n = parseInt(orMinutesInput.value, 10);
-  if (!Number.isNaN(n) && n > 0) {
-    orMinutes.value = n;
-  }
+  if (!Number.isNaN(n) && n > 0) orMinutes.value = n;
 };
 
 const fetchOpenRate = async () => {
@@ -88,12 +82,154 @@ const fetchOpenRate = async () => {
 };
 
 watch(orMinutes, fetchOpenRate);
-onMounted(fetchOpenRate);
+
+// ── Success Rate Chart (merchant=NOT NULL) ───────────────────────
+const CHART_W = 1200;
+const CHART_H = 360;
+const C_ML = 72;
+const C_MR = 28;
+const C_MT = 40;
+const C_MB = 60;
+const C_PW = CHART_W - C_ML - C_MR;
+const C_PH = CHART_H - C_MT - C_MB;
+const Y_TICKS = [0, 20, 40, 60, 80, 100];
+const COLORS = ['#f59e0b', '#60a5fa', '#34d399', '#f87171', '#a78bfa', '#fb923c', '#e879f9'];
+
+const chartDate = ref('today');
+const chartCurrency = ref('INR');
+const chartType = ref('all');
+
+const dateOptions = [
+  { label: 'Today',     value: 'today' },
+  { label: 'Yesterday', value: 'yesterday' },
+  { label: '过去6小时', value: '6hours' },
+  { label: '过去1小时', value: '1hour' },
+  { label: '过去5分钟', value: '5mins' },
+];
+
+const typeOptions = [
+  { label: '全部',   value: 'all' },
+  { label: 'payin',  value: 'payin' },
+  { label: 'payout', value: 'payout' },
+];
+
+const TYPE_TEST = { all: null, payin: 0, payout: 1 };
+
+const DATE_CONFIG = {
+  today:     { intervalSec: 300, slots: 24  },
+  yesterday: { intervalSec: 300, slots: 24  },
+  '6hours':  { intervalSec: 150, slots: 144 },
+  '1hour':   { intervalSec: 25,  slots: 144 },
+  '5mins':   { intervalSec: 5,   slots: 60  },
+};
+
+const currentConfig = computed(() => DATE_CONFIG[chartDate.value] ?? DATE_CONFIG.today);
+
+const chartLoading = ref(false);
+const chartError = ref('');
+const chartRawData = ref([]);
+
+const parseWindowTime = (wt) => {
+  const [datePart, timePart] = wt.split(', ');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, mi, sec = 0] = timePart.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi, sec, 0);
+};
+
+const fmtWindowTime = (dt) => {
+  const h  = String(dt.getHours()).padStart(2, '0');
+  const mi = String(dt.getMinutes()).padStart(2, '0');
+  const s  = String(dt.getSeconds()).padStart(2, '0');
+  return `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}, ${h}:${mi}:${s}`;
+};
+
+const chartSeries = computed(() => {
+  const map = new Map();
+  for (const p of chartRawData.value) {
+    if (!map.has(p.channelName)) map.set(p.channelName, []);
+    map.get(p.channelName).push(p);
+  }
+  return [...map.entries()].map(([name, pts]) => ({ name, pts }));
+});
+
+const chartTimes = computed(() => {
+  if (!chartRawData.value.length) return [];
+  const cfg = currentConfig.value;
+  const maxTs = Math.max(
+    ...chartRawData.value.map(p => parseWindowTime(p.windowTime).getTime())
+  );
+  const anchor = new Date(maxTs);
+  const slots = [];
+  for (let i = cfg.slots - 1; i >= 0; i--) {
+    slots.push(fmtWindowTime(new Date(anchor.getTime() - i * cfg.intervalSec * 1000)));
+  }
+  return slots;
+});
+
+const svgChart = computed(() => {
+  const times = chartTimes.value;
+  const series = chartSeries.value;
+  if (!times.length || !series.length) return null;
+  const n = times.length;
+  const xOf = (i) => C_ML + (n === 1 ? C_PW / 2 : (i * C_PW) / (n - 1));
+  const yOf = (rate) => C_MT + C_PH * (1 - rate / 100);
+
+  return {
+    yTicks: Y_TICKS.map((v) => ({ v, y: yOf(v) })),
+    xLabels: times.map((t, i) => ({
+      t,
+      label: t.includes(', ') ? t.split(', ')[1] : t,
+      x: xOf(i),
+      y: C_MT + C_PH + 14
+    })),
+    gridX1: C_ML,
+    gridX2: CHART_W - C_MR,
+    series: series.map((s, idx) => {
+      const rateMap = new Map(s.pts.map((p) => [p.windowTime, Number(p.successRate)]));
+      const pts = times.map((t, i) => {
+        const r = rateMap.has(t) ? rateMap.get(t) : 0;
+        return { x: xOf(i), y: yOf(r), r };
+      });
+      return {
+        name: s.name,
+        color: COLORS[idx % COLORS.length],
+        polyline: pts.map((p) => `${p.x},${p.y}`).join(' '),
+        pts
+      };
+    })
+  };
+});
+
+const fetchChartData = async () => {
+  chartLoading.value = true;
+  chartError.value = '';
+  try {
+    const params = { date: chartDate.value, merchant: 'NOT NULL' };
+    const testVal = TYPE_TEST[chartType.value];
+    if (testVal !== null) params.test = testVal;
+    const { data: response } = await http.get('/admin/pay/dashboard/channelSuccessRate', { params });
+    chartRawData.value = response?.data ?? [];
+  } catch (error) {
+    console.error('Failed to load channel success rate', error);
+    chartError.value = '无法加载成功率数据';
+    chartRawData.value = [];
+  } finally {
+    chartLoading.value = false;
+  }
+};
+
+watch([chartDate, chartType], fetchChartData);
+
+onMounted(async () => {
+  fetchOpenRate();
+  await fetchChartData();
+});
 </script>
 
 <template>
   <div class="merchant-view">
-    <!-- ── PayIn Link Open Rate ──────────────────────────────── -->
+
+    <!-- ── PayIn Link Open Rate ──────────────────────────────────── -->
     <section class="or-section">
       <div class="or-filter-bar">
         <label class="or-filter-item">
@@ -164,158 +300,114 @@ onMounted(fetchOpenRate);
       </div>
     </section>
 
-    <section class="panel hero gradient">
-      <div>
-        <p class="eyebrow">{{ data.hero.eyebrow }}</p>
-        <h2>{{ data.hero.title }}</h2>
-        <p class="muted">{{ data.hero.description }}</p>
+    <!-- ── 商户成功率曲线（merchant=NOT NULL）────────────────────── -->
+    <div class="sr-type-tabs">
+      <button
+        v-for="t in typeOptions"
+        :key="t.value"
+        class="sr-type-tab"
+        :class="{ active: chartType === t.value }"
+        type="button"
+        @click="chartType = t.value"
+      >{{ t.label }}</button>
+    </div>
+
+    <section class="panel success-rate-section">
+      <div class="sr-filter-bar">
+        <label class="sr-filter-item">
+          <span class="sr-filter-label">currency *</span>
+          <div class="sr-filter-field">
+            <select v-model="chartCurrency" class="sr-select">
+              <option value="INR">INR</option>
+            </select>
+          </div>
+        </label>
+        <label class="sr-filter-item">
+          <span class="sr-filter-label">Date *</span>
+          <div class="sr-filter-field">
+            <select v-model="chartDate" class="sr-select">
+              <option v-for="opt in dateOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </div>
+        </label>
       </div>
-      <p class="muted">{{ data.hero.sync }}</p>
-    </section>
 
-    <section class="kpi-grid">
-      <article v-for="kpi in data.kpis" :key="kpi.id" class="panel kpi-card">
-        <p class="kpi-label">{{ kpi.label }}</p>
-        <p class="kpi-value">{{ kpi.value }}</p>
-        <p class="kpi-meta">{{ kpi.meta }}</p>
-      </article>
-    </section>
+      <div class="sr-chart-wrap">
+        <p class="sr-chart-title">Success Rate/5 min</p>
 
-    <section class="spotlight-grid">
-      <article v-for="merchant in data.spotlight" :key="merchant.id" class="panel spotlight-card">
-        <header>
-          <div>
-            <p class="eyebrow">{{ merchant.country }}</p>
-            <h3>{{ merchant.name }}</h3>
-          </div>
-          <span class="risk">{{ merchant.risk }}</span>
-        </header>
-        <dl>
-          <div>
-            <dt>GMV</dt>
-            <dd>{{ merchant.gmvp }}</dd>
-          </div>
-          <div>
-            <dt>成功率</dt>
-            <dd>{{ merchant.success }}</dd>
-          </div>
-        </dl>
-        <p class="alert">{{ merchant.alert }}</p>
-      </article>
-    </section>
-
-    <section class="panel merchant-table">
-      <header>
-        <p class="eyebrow">重点商户</p>
-        <h3>今日经营快照</h3>
-      </header>
-      <table>
-        <thead>
-          <tr>
-            <th>商户</th>
-            <th>区域</th>
-            <th>今日 GMV</th>
-            <th>成功率</th>
-            <th>退款率</th>
-            <th>等级</th>
-            <th>Owner</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="merchant in data.merchantTable" :key="merchant.id">
-            <td>
-              <p class="name">{{ merchant.name }}</p>
-              <div class="tags">
-                <span v-for="tag in merchant.tags" :key="tag">{{ tag }}</span>
-              </div>
-            </td>
-            <td>{{ merchant.region }}</td>
-            <td>{{ merchant.today }}</td>
-            <td>{{ merchant.success }}</td>
-            <td>{{ merchant.dispute }}</td>
-            <td>{{ merchant.tier }}</td>
-            <td>{{ merchant.owner }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section class="retention-risk">
-      <article class="panel retention">
-        <header>
-          <p class="eyebrow">留存趋势</p>
-          <h3>经营稳定度</h3>
-        </header>
-        <div class="retention-list">
-          <div v-for="item in data.retention" :key="item.id" class="retention-row">
-            <div>
-              <p class="label">{{ item.label }}</p>
-              <p class="value">{{ item.value }}</p>
-            </div>
-            <span class="diff">{{ item.diff }}</span>
-          </div>
+        <div v-if="chartSeries.length" class="sr-legend">
+          <span v-for="(s, i) in chartSeries" :key="s.name" class="sr-legend-item">
+            <span class="sr-legend-dot" :style="{ background: COLORS[i % COLORS.length] }" />
+            {{ s.name }}
+          </span>
         </div>
-      </article>
-      <article class="panel risks">
-        <header>
-          <p class="eyebrow">风控信号</p>
-          <h3>实时关注</h3>
-        </header>
-        <ul>
-          <li v-for="risk in data.riskSignals" :key="risk.id">
-            <div>
-              <p class="title">{{ risk.merchant }}</p>
-              <p class="meta">{{ risk.signal }}</p>
-            </div>
-            <button type="button">{{ risk.action }}</button>
-          </li>
-        </ul>
-      </article>
+
+        <p v-if="chartLoading" class="muted sr-state">正在加载数据...</p>
+        <p v-else-if="chartError" class="error-text sr-state">{{ chartError }}</p>
+        <p v-else-if="!chartRawData.length" class="muted sr-state">暂无数据</p>
+
+        <div v-else-if="svgChart" class="sr-svg-container">
+          <svg
+            :viewBox="`0 0 ${CHART_W} ${CHART_H}`"
+            class="sr-svg"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <text
+              x="18"
+              :y="C_MT + C_PH / 2"
+              text-anchor="middle"
+              :transform="`rotate(-90, 18, ${C_MT + C_PH / 2})`"
+              class="sr-axis-label"
+            >successRate</text>
+
+            <g v-for="tick in svgChart.yTicks" :key="tick.v">
+              <line
+                :x1="svgChart.gridX1" :y1="tick.y"
+                :x2="svgChart.gridX2" :y2="tick.y"
+                class="sr-grid-line"
+              />
+              <text :x="C_ML - 8" :y="tick.y + 4" text-anchor="end" class="sr-tick-label">
+                {{ tick.v }}%
+              </text>
+            </g>
+
+            <g v-for="s in svgChart.series" :key="s.name">
+              <polyline
+                :points="s.polyline"
+                fill="none"
+                :stroke="s.color"
+                stroke-width="2.5"
+                stroke-linejoin="round"
+              />
+              <g v-for="(pt, pi) in s.pts" :key="pi">
+                <circle :cx="pt.x" :cy="pt.y" r="5" :fill="s.color" />
+                <text :x="pt.x" :y="pt.y - 12" text-anchor="middle" class="sr-data-label">
+                  {{ pt.r }}%
+                </text>
+              </g>
+            </g>
+
+            <g v-for="xl in svgChart.xLabels" :key="xl.t">
+              <text
+                :x="xl.x" :y="xl.y"
+                text-anchor="middle"
+                :transform="`rotate(-45, ${xl.x}, ${xl.y})`"
+                class="sr-tick-label"
+              >{{ xl.label }}</text>
+            </g>
+
+            <text
+              :x="C_ML + C_PW / 2" :y="CHART_H - 10"
+              text-anchor="middle"
+              class="sr-axis-label"
+            >5mintime: Minute</text>
+          </svg>
+        </div>
+      </div>
     </section>
 
-    <section class="ops-grid">
-      <article class="panel tickets">
-        <header>
-          <p class="eyebrow">处理工单</p>
-          <h3>跨域进度</h3>
-        </header>
-        <ul>
-          <li v-for="ticket in data.tickets" :key="ticket.id">
-            <div>
-              <p class="title">{{ ticket.title }}</p>
-              <p class="meta">{{ ticket.owner }} · {{ ticket.eta }}</p>
-            </div>
-            <span class="status">跟进</span>
-          </li>
-        </ul>
-      </article>
-      <article class="panel campaigns">
-        <header>
-          <p class="eyebrow">运营活动</p>
-          <h3>实时拉新</h3>
-        </header>
-        <div class="campaign-list">
-          <div v-for="campaign in data.campaigns" :key="campaign.id" class="campaign-row">
-            <div>
-              <p class="title">{{ campaign.name }}</p>
-              <p class="meta">{{ campaign.status }}</p>
-            </div>
-            <strong>{{ campaign.lift }}</strong>
-          </div>
-        </div>
-      </article>
-      <article class="panel notices">
-        <header>
-          <p class="eyebrow">运营提醒</p>
-          <h3>同步事项</h3>
-        </header>
-        <ul>
-          <li v-for="notice in data.notices" :key="notice.id">
-            {{ notice.text }}
-          </li>
-        </ul>
-      </article>
-    </section>
   </div>
 </template>
 
@@ -333,229 +425,12 @@ onMounted(fetchOpenRate);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.gradient {
-  background: linear-gradient(135deg, rgba(83, 95, 255, 0.6), rgba(12, 18, 36, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
 .muted {
   color: rgba(255, 255, 255, 0.7);
 }
 
-.hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.kpi-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.kpi-card {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.kpi-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.kpi-value {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 8px 0 4px;
-}
-
-.kpi-meta {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.spotlight-grid {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.spotlight-card header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.spotlight-card .risk {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.spotlight-card dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 12px;
-  margin: 0 0 12px;
-}
-
-.spotlight-card dt {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.spotlight-card dd {
-  margin: 4px 0 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.spotlight-card .alert {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.merchant-table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin-top: 12px;
-}
-
-.merchant-table th {
-  text-align: left;
-  padding: 10px 0;
-  color: rgba(255, 255, 255, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.merchant-table td {
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.merchant-table .name {
-  margin: 0 0 6px;
-  font-weight: 600;
-}
-
-.merchant-table .tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.merchant-table .tags span {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 11px;
-}
-
-.retention-risk {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
-.retention-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.retention-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.retention-row .diff {
-  color: rgba(122, 227, 129, 0.9);
-  font-weight: 600;
-}
-
-.risks ul,
-.tickets ul,
-.notices ul {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.risks li,
-.tickets li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.risks button {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  padding: 4px 12px;
-  font-size: 12px;
-}
-
-.tickets .status {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.ops-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 24px;
-}
-
-.campaign-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.campaign-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.notices ul li {
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-@media (max-width: 960px) {
-  .hero {
-    flex-direction: column;
-    gap: 12px;
-  }
+.error-text {
+  color: #f87171;
 }
 
 /* ── PayIn Link Open Rate ──────────────────────────────────────── */
@@ -599,7 +474,7 @@ onMounted(fetchOpenRate);
 .or-select,
 .or-input {
   flex: 1;
-  background: transparent;
+  background: #1a1c2e;
   border: none;
   color: #fff;
   font-size: 15px;
@@ -607,6 +482,11 @@ onMounted(fetchOpenRate);
   padding: 8px 14px;
   outline: none;
   min-width: 0;
+}
+
+.or-select option {
+  background: #1a1c2e;
+  color: #fff;
 }
 
 .or-input[type='number']::-webkit-inner-spin-button {
@@ -666,10 +546,6 @@ onMounted(fetchOpenRate);
   font-size: 13px;
 }
 
-.error-text {
-  color: #f87171;
-}
-
 .or-table-wrap {
   overflow-x: auto;
 }
@@ -692,13 +568,9 @@ onMounted(fetchOpenRate);
   user-select: none;
 }
 
-.or-th:hover {
-  color: rgba(255, 255, 255, 0.85);
-}
+.or-th:hover { color: rgba(255, 255, 255, 0.85); }
 
-.or-th--active {
-  color: rgba(177, 185, 249, 0.9);
-}
+.or-th--active { color: rgba(177, 185, 249, 0.9); }
 
 .or-sort-icon {
   margin-left: 4px;
@@ -713,14 +585,160 @@ onMounted(fetchOpenRate);
   white-space: nowrap;
 }
 
-.or-row:last-child .or-td {
-  border-bottom: none;
-}
+.or-row:last-child .or-td { border-bottom: none; }
 
 .or-empty {
   padding: 24px;
   text-align: center;
   color: rgba(255, 255, 255, 0.4);
   font-size: 13px;
+}
+
+/* ── Type tabs ──────────────────────────────────────────────────── */
+.sr-type-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.sr-type-tab {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 6px 22px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.sr-type-tab:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.sr-type-tab.active {
+  background: rgba(127, 133, 249, 0.2);
+  border-color: rgba(127, 133, 249, 0.5);
+  color: #fff;
+}
+
+/* ── Success Rate Chart ─────────────────────────────────────────── */
+.success-rate-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sr-filter-bar {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.sr-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.sr-filter-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.05em;
+}
+
+.sr-filter-field {
+  border: 1.5px solid rgba(127, 133, 249, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sr-select {
+  width: 100%;
+  background: #1a1c2e;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 14px;
+  cursor: pointer;
+  outline: none;
+}
+
+.sr-select option {
+  background: #1a1c2e;
+  color: #fff;
+}
+
+.sr-chart-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sr-chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+.sr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sr-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sr-state {
+  padding: 20px 0;
+}
+
+.sr-svg-container {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.sr-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sr-grid-line {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+}
+
+.sr-tick-label {
+  fill: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+}
+
+.sr-axis-label {
+  fill: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
+
+.sr-data-label {
+  fill: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  font-weight: 500;
 }
 </style>

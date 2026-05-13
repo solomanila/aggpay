@@ -137,8 +137,8 @@ public interface DashboardSummaryMapper {
                     CONCAT('Channel-', o.pay_config_id)
                 ) AS channelName,
                 DATE_FORMAT(
-                    FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(o.create_time) / 300) * 300),
-                    '%Y-%c-%e, %H:%i'
+                    FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(o.create_time) / ${intervalSeconds}) * ${intervalSeconds}),
+                    '%Y-%c-%e, %H:%i:%S'
                 ) AS windowTime,
                 ROUND(SUM(CASE WHEN o.status = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100, 2) AS successRate
             FROM order_info o
@@ -146,12 +146,40 @@ public interface DashboardSummaryMapper {
             WHERE o.create_time >= #{startTime}
               AND o.create_time < #{endTime}
               AND o.pay_config_id IS NOT NULL
+              AND (#{test} IS NULL OR p.test = #{test})
+              AND (
+                  (#{nonMerchantOnly} IS NULL AND #{allMerchantsOnly} IS NULL AND #{merchantAccount} IS NULL)
+                  OR (#{nonMerchantOnly} = 1 AND (
+                      o.platform_id IS NULL
+                      OR o.platform_id NOT IN (
+                          SELECT platform_id FROM admin.system_user_auth
+                          WHERE platform_id IS NOT NULL
+                      )
+                  ))
+                  OR (#{allMerchantsOnly} = 1 AND o.platform_id IN (
+                      SELECT platform_id FROM admin.system_user_auth
+                      WHERE platform_id IS NOT NULL
+                  ))
+                  OR (#{merchantAccount} IS NOT NULL AND o.platform_id = (
+                      SELECT b.platform_id
+                      FROM admin.system_user_auth b
+                      INNER JOIN pay_platform_info a ON a.platform_id = b.platform_id
+                      WHERE b.account = #{merchantAccount}
+                        AND b.platform_id IS NOT NULL
+                      LIMIT 1
+                  ))
+              )
             GROUP BY o.pay_config_id, p.short_code, p.third_service, windowTime
             ORDER BY windowTime ASC, o.pay_config_id ASC
             """)
     List<ChannelSuccessRatePoint> selectChannelSuccessRate(
             @Param("startTime") Date startTime,
-            @Param("endTime") Date endTime);
+            @Param("endTime") Date endTime,
+            @Param("intervalSeconds") int intervalSeconds,
+            @Param("test") Integer test,
+            @Param("merchantAccount") String merchantAccount,
+            @Param("nonMerchantOnly") Integer nonMerchantOnly,
+            @Param("allMerchantsOnly") Integer allMerchantsOnly);
 
     @Select("""
             SELECT

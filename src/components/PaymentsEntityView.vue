@@ -2,14 +2,8 @@
 import { computed, onMounted, ref } from 'vue';
 import http from '../services/http';
 
-const { data } = defineProps({
-  data: {
-    type: Object,
-    required: true
-  }
-});
+const paginationSizes = [10, 20, 50];
 
-// ── 主体配置列表 ──────────────────────────────────────────────────
 const searchShortCode = ref('');
 const tableRows = ref([]);
 const tableTotal = ref(0);
@@ -17,8 +11,6 @@ const tablePage = ref(1);
 const tablePageSize = ref(20);
 const tableLoading = ref(false);
 const tableError = ref('');
-
-const paginationSizes = [10, 20, 50];
 
 const totalPages = computed(() =>
   tableTotal.value ? Math.max(1, Math.ceil(tableTotal.value / tablePageSize.value)) : 1
@@ -83,7 +75,6 @@ onMounted(fetchList);
 
 <template>
   <div class="entity-view">
-    <!-- ── 主体配置列表 ─────────────────────────────────────────── -->
     <section class="panel config-list-panel">
       <div class="search-bar">
         <input
@@ -161,112 +152,6 @@ onMounted(fetchList);
         </div>
       </div>
     </section>
-
-    <section class="panel hero gradient">
-      <div>
-        <p class="eyebrow">{{ data.hero.eyebrow }}</p>
-        <h2>{{ data.hero.title }}</h2>
-        <p class="muted">{{ data.hero.description }}</p>
-      </div>
-      <p class="muted">{{ data.hero.sync }}</p>
-    </section>
-
-    <section class="stat-grid">
-      <article v-for="stat in data.stats" :key="stat.id" class="panel stat-card">
-        <p class="label">{{ stat.label }}</p>
-        <p class="value">{{ stat.value }}</p>
-        <p class="meta">{{ stat.meta }}</p>
-      </article>
-    </section>
-
-    <section class="panel filters">
-      <header>
-        <p class="eyebrow">状态筛选</p>
-        <h3>主体视图</h3>
-      </header>
-      <div class="chips">
-        <button v-for="filter in data.filters" :key="filter" type="button">{{ filter }}</button>
-      </div>
-    </section>
-
-    <section class="entities">
-      <article v-for="entity in data.entities" :key="entity.id" class="panel entity-card">
-        <header>
-          <div>
-            <p class="eyebrow">{{ entity.region }}</p>
-            <h3>{{ entity.name }}</h3>
-          </div>
-          <span class="status">{{ entity.status }}</span>
-        </header>
-        <p class="industry">行业：{{ entity.industry }}</p>
-        <p class="limit">额度：{{ entity.limit }}</p>
-        <div class="meta">
-          <span>Owner · {{ entity.owner }}</span>
-        </div>
-      </article>
-    </section>
-
-    <section class="compliance-docs">
-      <article class="panel compliance">
-        <header>
-          <p class="eyebrow">合规进度</p>
-          <h3>配置完成度</h3>
-        </header>
-        <ul>
-          <li v-for="item in data.compliance" :key="item.id">
-            <div>
-              <p class="label">{{ item.label }}</p>
-              <p class="percent">{{ item.percent }}%</p>
-            </div>
-            <div class="progress">
-              <span :style="{ width: `${item.percent}%` }" />
-            </div>
-          </li>
-        </ul>
-      </article>
-
-      <article class="panel documents">
-        <header>
-          <p class="eyebrow">资料库</p>
-          <h3>合同与报告</h3>
-        </header>
-        <ul>
-          <li v-for="doc in data.documents" :key="doc.id">
-            <div>
-              <p class="title">{{ doc.title }}</p>
-              <p class="meta">{{ doc.type }}</p>
-            </div>
-            <span class="status">{{ doc.status }}</span>
-          </li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="panel approvals">
-      <header>
-        <p class="eyebrow">审批中心</p>
-        <h3>待跟进</h3>
-      </header>
-      <div class="approval-list">
-        <div v-for="approval in data.approvals" :key="approval.id" class="approval-row">
-          <div>
-            <p class="title">{{ approval.title }}</p>
-            <p class="meta">{{ approval.stage }} · {{ approval.owner }}</p>
-          </div>
-          <button type="button">查看</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel notices">
-      <header>
-        <p class="eyebrow">提醒</p>
-        <h3>最新更新</h3>
-      </header>
-      <ul>
-        <li v-for="notice in data.notices" :key="notice.id">{{ notice.text }}</li>
-      </ul>
-    </section>
   </div>
 </template>
 
@@ -284,23 +169,10 @@ onMounted(fetchList);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.gradient {
-  background: linear-gradient(135deg, rgba(77, 98, 255, 0.65), rgba(10, 16, 32, 0.95));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
 .muted {
   color: rgba(255, 255, 255, 0.7);
 }
 
-/* ── 主体配置列表 ─────────────────────────────────────────────── */
 .config-list-panel {
   display: flex;
   flex-direction: column;
@@ -496,151 +368,5 @@ onMounted(fetchList);
 
 .error-text {
   color: #ff8e8e;
-}
-
-/* ── rest of page ────────────────────────────────────────────── */
-.stat-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.stat-card {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.stat-card .label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-card .value {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 8px 0 4px;
-}
-
-.filters .chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.filters button {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 999px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  padding: 6px 16px;
-}
-
-.entities {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-.entity-card header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.entity-card .status {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.industry,
-.limit,
-.meta {
-  color: rgba(255, 255, 255, 0.75);
-  margin: 6px 0;
-}
-
-.compliance-docs {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.compliance ul,
-.documents ul,
-.notices ul {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.compliance li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.compliance .progress {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.compliance .progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(120deg, rgba(126, 143, 255, 0.8), rgba(99, 228, 255, 0.8));
-}
-
-.documents li,
-.notices li {
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.approvals .approval-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.approval-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.approval-row button {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: transparent;
-  color: #fff;
-  padding: 4px 12px;
-}
-
-@media (max-width: 960px) {
-  .hero {
-    flex-direction: column;
-    gap: 12px;
-  }
 }
 </style>

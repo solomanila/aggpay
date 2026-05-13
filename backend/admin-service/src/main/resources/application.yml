@@ -47,3 +47,6 @@ logging:
   level:
     com.letsvpn.admin: INFO
 
+rocketmq:
+  name-server: 127.0.0.1:9876
+

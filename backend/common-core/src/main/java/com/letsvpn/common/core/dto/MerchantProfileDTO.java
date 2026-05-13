@@ -11,5 +11,6 @@ public class MerchantProfileDTO {
     private String title;
     private String secretKey;
     private Integer nullify;
+    private Integer areaType;
     private Date createTime;
 }

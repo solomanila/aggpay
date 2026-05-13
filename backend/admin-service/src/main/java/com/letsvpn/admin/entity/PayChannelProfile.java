@@ -41,6 +41,12 @@ public class PayChannelProfile {
     @TableField("limit_config")
     private String limitConfig;
 
+    @TableField("business_types")
+    private String businessTypes;
+
+    @TableField("extra")
+    private String extra;
+
     @TableField("owner_user_id")
     private Long ownerUserId;
 

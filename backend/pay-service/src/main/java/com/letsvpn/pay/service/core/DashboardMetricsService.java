@@ -1,6 +1,7 @@
 package com.letsvpn.pay.service.core;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.letsvpn.common.core.dto.BoardChannelDTO;
@@ -18,6 +19,14 @@ import com.letsvpn.common.core.dto.OrderInfoDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
+import com.letsvpn.common.core.dto.OrderCreatedAtDTO;
+import com.letsvpn.common.core.dto.PayinOrderVO;
+import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
+import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
+import com.letsvpn.common.core.dto.PlatformAccountDTO;
+import com.letsvpn.common.core.response.R;
+import com.letsvpn.pay.client.AdminBalanceLogInternalClient;
+import com.letsvpn.pay.client.AdminUserAuthClient;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.letsvpn.pay.entity.MerchantInfo;
 import com.letsvpn.pay.entity.OrderBuildError;
@@ -36,12 +45,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -68,6 +78,10 @@ public class DashboardMetricsService {
     private final PayPlatformInfoMapper payPlatformInfoMapper;
     private final PayConfigChannelMapper payConfigChannelMapper;
     private final com.letsvpn.pay.mapper.ext.ExtChannelProfitStatMapper extChannelProfitStatMapper;
+    private final com.letsvpn.pay.mapper.ext.ExtPayinSummaryMapper extPayinSummaryMapper;
+    private final com.letsvpn.pay.mapper.ext.ExtPayChannelPageMapper extPayChannelPageMapper;
+    private final AdminUserAuthClient adminUserAuthClient;
+    private final AdminBalanceLogInternalClient adminBalanceLogClient;
 
     public HomeDashboardMetricsResponse getHomeMetrics() {
         List<Integer> rawAreas = payConfigInfoMapper.selectDistinctAreaTypes();
@@ -127,69 +141,162 @@ public class DashboardMetricsService {
                 .collect(Collectors.toList());
     }
 
-    public Page<OrderInfoDTO> getChannelStats(String period, Integer payConfigId, long pageNum, long pageSize) {
+    public Page<PayinOrderVO> getChannelStats(
+            Long id, String otherOrderId,
+            String createStartTime, String createEndTime,
+            String payStartTime, String payEndTime,
+            Long channelId, Integer status, String account,
+            long pageNum, long pageSize) {
         long pageIndex = Math.max(pageNum, 1L);
         long size = Math.max(1L, Math.min(pageSize, 200L));
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime startTime = resolveStartTime(period, now);
-        LocalDateTime endTime = resolveEndTime(period, now);
+        // Resolve platformId by account (cross-schema: Feign to admin-service)
+        Integer platformIdFilter = null;
+        if (StringUtils.hasText(account)) {
+            R<Integer> resp = adminUserAuthClient.getPlatformIdByAccount(account.trim());
+            platformIdFilter = (resp != null && resp.getData() != null) ? resp.getData() : -1;
+        }
 
         LambdaQueryWrapper<OrderInfo> wrapper = Wrappers.<OrderInfo>lambdaQuery()
-                .orderByDesc(OrderInfo::getPayTime);
-        if (payConfigId != null) {
-            wrapper.eq(OrderInfo::getPayConfigId, payConfigId);
+                .orderByDesc(OrderInfo::getCreateTime);
+        if (id != null) {
+            wrapper.eq(OrderInfo::getId, id);
         }
-        if (startTime != null) {
-            wrapper.ge(OrderInfo::getPayTime, toDate(startTime));
+        if (StringUtils.hasText(otherOrderId)) {
+            wrapper.eq(OrderInfo::getOtherOrderId, otherOrderId.trim());
         }
-        if (endTime != null) {
-            wrapper.lt(OrderInfo::getPayTime, toDate(endTime));
+        if (StringUtils.hasText(createStartTime)) {
+            try { wrapper.ge(OrderInfo::getCreateTime, parseDateTime(createStartTime)); } catch (Exception ignored) {}
+        }
+        if (StringUtils.hasText(createEndTime)) {
+            try { wrapper.le(OrderInfo::getCreateTime, parseDateTime(createEndTime)); } catch (Exception ignored) {}
+        }
+        if (StringUtils.hasText(payStartTime)) {
+            try { wrapper.ge(OrderInfo::getPayTime, parseDateTime(payStartTime)); } catch (Exception ignored) {}
+        }
+        if (StringUtils.hasText(payEndTime)) {
+            try { wrapper.le(OrderInfo::getPayTime, parseDateTime(payEndTime)); } catch (Exception ignored) {}
+        }
+        if (channelId != null) {
+            wrapper.eq(OrderInfo::getPayConfigChannelId, channelId);
+        }
+        if (status != null) {
+            wrapper.eq(OrderInfo::getStatus, status);
+        }
+        if (platformIdFilter != null) {
+            wrapper.eq(OrderInfo::getPlatformId, platformIdFilter);
         }
 
         Page<OrderInfo> pageResult = orderInfoMapper.selectPage(new Page<>(pageIndex, size), wrapper);
-        List<OrderInfoDTO> records = pageResult.getRecords().stream()
-                .map(this::convertToDto)
+        List<OrderInfo> records = pageResult.getRecords();
+
+        // Batch fetch pay_config_channel titles (same schema)
+        Set<Long> channelIds = records.stream()
+                .map(OrderInfo::getPayConfigChannelId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> channelTitleMap = Collections.emptyMap();
+        if (!channelIds.isEmpty()) {
+            List<PayConfigChannel> channels = payConfigChannelMapper.selectBatchIds(channelIds);
+            if (channels != null) {
+                channelTitleMap = channels.stream()
+                        .filter(c -> c.getId() != null)
+                        .collect(Collectors.toMap(PayConfigChannel::getId,
+                                c -> c.getTitle() != null ? c.getTitle() : "", (a, b) -> a));
+            }
+        }
+
+        // Batch fetch accounts from admin-service (cross-schema: Feign)
+        Set<Integer> platformIds = records.stream()
+                .map(OrderInfo::getPlatformId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Integer, String> accountMap = Collections.emptyMap();
+        if (!platformIds.isEmpty()) {
+            R<List<PlatformAccountDTO>> accountResp = adminUserAuthClient.getAccountsByPlatformIds(
+                    new ArrayList<>(platformIds));
+            List<PlatformAccountDTO> accountList = (accountResp != null && accountResp.getData() != null)
+                    ? accountResp.getData() : Collections.emptyList();
+            accountMap = accountList.stream()
+                    .filter(a -> a.getPlatformId() != null)
+                    .collect(Collectors.toMap(PlatformAccountDTO::getPlatformId,
+                            a -> a.getAccount() != null ? a.getAccount() : "", (a, b) -> a));
+        }
+
+        // Batch fetch merchant_balance_log.created_at by order_id (cross-schema: Feign to admin-service)
+        List<String> orderIdList = records.stream()
+                .map(OrderInfo::getOrderId)
+                .filter(StringUtils::hasText)
+                .distinct()
                 .collect(Collectors.toList());
-        Page<OrderInfoDTO> dtoPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
-        dtoPage.setRecords(records);
-        return dtoPage;
+        Map<String, Date> createdAtMap = Collections.emptyMap();
+        if (!orderIdList.isEmpty()) {
+            R<List<OrderCreatedAtDTO>> caResp = adminBalanceLogClient.getCreatedAtByOrderIds(orderIdList);
+            List<OrderCreatedAtDTO> caList = (caResp != null && caResp.getData() != null)
+                    ? caResp.getData() : Collections.emptyList();
+            createdAtMap = caList.stream()
+                    .filter(d -> d.getOrderId() != null)
+                    .collect(Collectors.toMap(OrderCreatedAtDTO::getOrderId,
+                            OrderCreatedAtDTO::getCreatedAt, (a, b) -> a));
+        }
+
+        Map<Long, String> finalChannelTitleMap = channelTitleMap;
+        Map<Integer, String> finalAccountMap = accountMap;
+        Map<String, Date> finalCreatedAtMap = createdAtMap;
+        List<PayinOrderVO> voList = records.stream().map(order -> {
+            PayinOrderVO vo = new PayinOrderVO();
+            vo.setId(order.getId());
+            vo.setOrderId(order.getOrderId());
+            vo.setOtherOrderId(order.getOtherOrderId());
+            vo.setReqAmount(order.getReqAmount());
+            vo.setRealAmount(order.getRealAmount());
+            vo.setTitle(order.getPayConfigChannelId() != null
+                    ? finalChannelTitleMap.getOrDefault(order.getPayConfigChannelId(), "") : "");
+            vo.setAccount(order.getPlatformId() != null
+                    ? finalAccountMap.getOrDefault(order.getPlatformId(), "") : "");
+            vo.setStatus(order.getStatus());
+            vo.setRefundStatus("init");
+            vo.setUtr(order.getOtherOrderId());
+            vo.setBank("");
+            vo.setPayerVPA("");
+            vo.setPhone(order.getExtend1());
+            vo.setName(order.getExtend2());
+            vo.setCreateTime(order.getCreateTime());
+            vo.setPayTime(order.getPayTime());
+            vo.setCreatedAt(StringUtils.hasText(order.getOrderId())
+                    ? finalCreatedAtMap.get(order.getOrderId()) : null);
+            return vo;
+        }).collect(Collectors.toList());
+
+        Page<PayinOrderVO> result = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
+        result.setRecords(voList);
+        return result;
     }
 
-    private LocalDateTime resolveStartTime(String period, LocalDateTime now) {
-        String normalized = normalizePeriod(period);
-        switch (normalized) {
-            case "2w":
-                return now.minusWeeks(2);
-            case "1w":
-                return now.minusWeeks(1);
-            default:
-                LocalDate today = LocalDate.now();
-                return LocalDateTime.of(today, LocalTime.MIN);
-        }
+    public List<BoardChannelDTO> getAllChannelOptions() {
+        List<PayConfigChannel> channels = payConfigChannelMapper.selectList(null);
+        if (channels == null) return Collections.emptyList();
+        return channels.stream().map(c -> {
+            BoardChannelDTO dto = new BoardChannelDTO();
+            dto.setId(c.getId());
+            dto.setTitle(c.getTitle() != null ? c.getTitle() : "");
+            return dto;
+        }).sorted(java.util.Comparator.comparing(BoardChannelDTO::getId)).collect(Collectors.toList());
     }
 
-    private LocalDateTime resolveEndTime(String period, LocalDateTime now) {
-        String normalized = normalizePeriod(period);
-        if ("today".equals(normalized)) {
-            LocalDate tomorrow = LocalDate.now().plusDays(1);
-            return LocalDateTime.of(tomorrow, LocalTime.MIN);
+    private Date parseDateTime(String value) {
+        try {
+            LocalDateTime ldt = LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"));
+            return toDate(ldt);
+        } catch (Exception e1) {
+            try {
+                LocalDateTime ldt = LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                return toDate(ldt);
+            } catch (Exception e2) {
+                LocalDate ld = LocalDate.parse(value);
+                return toDate(LocalDateTime.of(ld, LocalTime.MIN));
+            }
         }
-        return now;
-    }
-
-    private String normalizePeriod(String period) {
-        if (period == null || period.isBlank()) {
-            return "today";
-        }
-        String value = period.trim().toLowerCase(Locale.ROOT);
-        if (value.contains("two") || value.contains("2") || value.contains("二")) {
-            return "2w";
-        }
-        if (value.contains("one") || value.contains("1") || value.contains("一")) {
-            return "1w";
-        }
-        return "today";
     }
 
     private Date toDate(LocalDateTime time) {
@@ -202,20 +309,60 @@ public class DashboardMetricsService {
         return result == null ? Collections.emptyList() : result;
     }
 
-    public List<ChannelSuccessRatePoint> getChannelSuccessRate(String date) {
+    public List<ChannelSuccessRatePoint> getChannelSuccessRate(String date, Integer test, String merchant) {
+        LocalDateTime now = LocalDateTime.now();
         LocalDateTime startTime;
         LocalDateTime endTime;
-        if ("yesterday".equalsIgnoreCase(date)) {
-            LocalDate yesterday = LocalDate.now().minusDays(1);
-            startTime = LocalDateTime.of(yesterday, LocalTime.MIN);
-            endTime = LocalDateTime.of(yesterday.plusDays(1), LocalTime.MIN);
-        } else {
-            LocalDate today = LocalDate.now();
-            startTime = LocalDateTime.of(today, LocalTime.MIN);
-            endTime = LocalDateTime.of(today.plusDays(1), LocalTime.MIN);
+        int intervalSeconds;
+
+        switch (date == null ? "today" : date.toLowerCase()) {
+            case "yesterday":
+                LocalDate yesterday = LocalDate.now().minusDays(1);
+                startTime = LocalDateTime.of(yesterday, LocalTime.MIN);
+                endTime   = LocalDateTime.of(yesterday.plusDays(1), LocalTime.MIN);
+                intervalSeconds = 300;
+                break;
+            case "6hours":
+                startTime = now.minusHours(6);
+                endTime   = now;
+                intervalSeconds = 150;
+                break;
+            case "1hour":
+                startTime = now.minusHours(1);
+                endTime   = now;
+                intervalSeconds = 25;
+                break;
+            case "5mins":
+                startTime = now.minusMinutes(5);
+                endTime   = now;
+                intervalSeconds = 5;
+                break;
+            default: // today
+                LocalDate today = LocalDate.now();
+                startTime = LocalDateTime.of(today, LocalTime.MIN);
+                endTime   = LocalDateTime.of(today.plusDays(1), LocalTime.MIN);
+                intervalSeconds = 300;
+                break;
         }
+
+        String merchantAccount = null;
+        Integer nonMerchantOnly = null;
+        Integer allMerchantsOnly = null;
+        if (merchant != null) {
+            String trimmed = merchant.trim();
+            if (trimmed.isEmpty()) {
+                nonMerchantOnly = 1;          // merchant=（空串）→ 过滤非商户
+            } else if ("NOT NULL".equalsIgnoreCase(trimmed)) {
+                allMerchantsOnly = 1;         // merchant=NOT NULL → 所有商户
+            } else {
+                merchantAccount = trimmed;    // merchant=india1 → 指定商户
+            }
+        }
+        // merchant==null → 三者均 null → 不过滤（原有逻辑不变）
+
         List<ChannelSuccessRatePoint> result = dashboardSummaryMapper.selectChannelSuccessRate(
-                toDate(startTime), toDate(endTime));
+                toDate(startTime), toDate(endTime), intervalSeconds, test,
+                merchantAccount, nonMerchantOnly, allMerchantsOnly);
         return result == null ? Collections.emptyList() : result;
     }
 
@@ -371,6 +518,18 @@ public class DashboardMetricsService {
         return toMerchantProfileDTO(info);
     }
 
+    public OrderInfoDTO getOrderInfoById(Long id) {
+        OrderInfo info = orderInfoMapper.selectById(id);
+        return info == null ? null : convertToDto(info);
+    }
+
+    public List<OrderInfoDTO> getOrdersByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) return Collections.emptyList();
+        List<OrderInfo> list = orderInfoMapper.selectList(
+                new LambdaQueryWrapper<OrderInfo>().in(OrderInfo::getOrderId, orderIds));
+        return list.stream().map(this::convertToDto).collect(Collectors.toList());
+    }
+
     public MerchantProfileDTO createMerchant(String title, Integer status) {
         PayPlatformInfo info = new PayPlatformInfo();
         info.setTitle(title);
@@ -455,6 +614,7 @@ public class DashboardMetricsService {
         dto.setTitle(info.getTitle());
         dto.setSecretKey(info.getSecretKey());
         dto.setNullify(info.getNullify());
+        dto.setAreaType(info.getAreaType());
         dto.setCreateTime(info.getCreateTime());
         return dto;
     }
@@ -559,6 +719,42 @@ public class DashboardMetricsService {
                 pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
         dtoPage.setRecords(records);
         return dtoPage;
+    }
+
+    public Page<PayinSummaryRowDTO> getPayinSummaryPage(
+            String startTime, Integer areaType, long pageNum, long pageSize) {
+        long size = Math.max(1L, Math.min(pageSize, 200L));
+        long index = Math.max(pageNum, 1L);
+
+        List<Integer> platformIds = null;
+        if (areaType != null) {
+            List<PayPlatformInfo> platforms = payPlatformInfoMapper.selectList(
+                    Wrappers.<PayPlatformInfo>lambdaQuery()
+                            .eq(PayPlatformInfo::getAreaType, areaType)
+                            .select(PayPlatformInfo::getPlatformId));
+            if (platforms == null || platforms.isEmpty()) {
+                Page<PayinSummaryRowDTO> empty = new Page<>(index, size, 0);
+                empty.setRecords(Collections.emptyList());
+                return empty;
+            }
+            platformIds = platforms.stream()
+                    .map(PayPlatformInfo::getPlatformId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+
+        com.baomidou.mybatisplus.core.metadata.IPage<PayinSummaryRowDTO> page =
+                new Page<>(index, size);
+        return (Page<PayinSummaryRowDTO>) extPayinSummaryMapper
+                .selectPayinSummaryPage(page, startTime, platformIds);
+    }
+
+    public Page<PayChannelPageRowDTO> getPayChannelPage(
+            Long id, String title, Integer status, Integer areaType, long pageNum, long pageSize) {
+        long size = Math.max(1L, Math.min(pageSize, 200L));
+        IPage<PayChannelPageRowDTO> page = new Page<>(Math.max(pageNum, 1L), size);
+        return (Page<PayChannelPageRowDTO>) extPayChannelPageMapper
+                .selectPayChannelPage(page, id, title, status, areaType);
     }
 
     public List<com.letsvpn.common.core.dto.ChannelPlatformStatDTO> getDailyChannelPlatformStats(String date) {

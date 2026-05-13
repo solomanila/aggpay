@@ -56,6 +56,20 @@ All 56 components in `src/components/` are Vue 3 SFCs using `<script setup>`. Pa
 - **禁止**在下游 Controller 中重新解析 JWT（不要调用 `JwtUtils.getUserIdFromToken`）
 - `AuthContextHolder` 位于 `common-core/src/main/java/com/letsvpn/common/core/util/AuthContextHolder.java`
 
+## SQL 变更输出规则（强制）
+
+**每次开发涉及数据库结构变更时，必须在回复中输出完整的 DDL SQL**，包括但不限于：
+- 新增表（`CREATE TABLE`）
+- 新增字段（`ALTER TABLE ... ADD COLUMN`）
+- 修改字段（`ALTER TABLE ... MODIFY COLUMN`）
+- 新增索引（`CREATE INDEX`）
+- 删除字段或表
+
+**格式要求**：
+- 标注所属 schema（如 `admin.pay_channel_profile`）
+- 包含字段类型、是否 NULL、默认值、注释（`COMMENT`）
+- 不得省略，不得让用户自行推断
+
 ## 微服务数据库隔离规则（强制）
 
 - **admin-service** 只能直接访问 `admin` schema（admin.* 表）

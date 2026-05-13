@@ -6,8 +6,12 @@ import com.letsvpn.common.core.dto.ChannelOpenRateRow;
 import com.letsvpn.common.core.dto.ChannelSuccessRatePoint;
 import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
+import com.letsvpn.common.core.dto.BoardChannelDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import com.letsvpn.common.core.dto.PayinOrderVO;
+import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
+import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
@@ -64,8 +68,10 @@ public class PayAdminController {
 
     @GetMapping("/dashboard/channelSuccessRate")
     public R<List<ChannelSuccessRatePoint>> dashboardChannelSuccessRate(
-            @RequestParam(value = "date", defaultValue = "today") String date) {
-        return R.success(payServiceFacade.fetchChannelSuccessRate(date));
+            @RequestParam(value = "date", defaultValue = "today") String date,
+            @RequestParam(value = "test", required = false) Integer test,
+            @RequestParam(value = "merchant", required = false) String merchant) {
+        return R.success(payServiceFacade.fetchChannelSuccessRate(date, test, merchant));
     }
 
     @GetMapping("/dashboard/channelConfigList")
@@ -112,11 +118,47 @@ public class PayAdminController {
     }
 
     @GetMapping("/dashboard/channelStat")
-    public R<Page<OrderInfoDTO>> dashboardChannelStat(
-            @RequestParam(value = "period", defaultValue = "today") String period,
-            @RequestParam(value = "payConfigId", required = false) Integer payConfigId,
+    public R<Page<PayinOrderVO>> dashboardChannelStat(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
+            @RequestParam(value = "createStartTime", required = false) String createStartTime,
+            @RequestParam(value = "createEndTime", required = false) String createEndTime,
+            @RequestParam(value = "payStartTime", required = false) String payStartTime,
+            @RequestParam(value = "payEndTime", required = false) String payEndTime,
+            @RequestParam(value = "channelId", required = false) Long channelId,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "account", required = false) String account,
             @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
             @RequestParam(value = "pageSize", defaultValue = "20") long pageSize) {
-        return R.success(payServiceFacade.fetchChannelStats(period, payConfigId, pageNum, pageSize));
+        return R.success(payServiceFacade.fetchChannelStats(
+                id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/allChannelOptions")
+    public R<List<BoardChannelDTO>> dashboardAllChannelOptions() {
+        return R.success(payServiceFacade.fetchAllChannelOptions());
+    }
+
+    @GetMapping("/dashboard/payChannelPage")
+    public R<Page<PayChannelPageRowDTO>> dashboardPayChannelPage(
+            @RequestParam(required = false) Long id,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String currency,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(defaultValue = "1")  long pageNum,
+            @RequestParam(defaultValue = "20") long pageSize) {
+        return R.success(payServiceFacade
+                .fetchPayChannelPage(id, title, status, currency, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/payinSummaryPage")
+    public R<Page<PayinSummaryRowDTO>> dashboardPayinSummaryPage(
+            @RequestParam(required = false) String dateType,
+            @RequestParam(required = false) Integer areaType,
+            @RequestParam(defaultValue = "1")  long pageNum,
+            @RequestParam(defaultValue = "20") long pageSize) {
+        return R.success(payServiceFacade
+                .fetchPayinSummaryPage(dateType, areaType, pageNum, pageSize));
     }
 }

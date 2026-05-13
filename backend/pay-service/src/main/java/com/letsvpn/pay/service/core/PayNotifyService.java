@@ -11,7 +11,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.letsvpn.pay.dto.IPayNotifyHandle;
 import com.letsvpn.pay.dto.IPayNotifyResultHandle;
-import com.letsvpn.pay.dto.PaySuccessMessage;
+import com.letsvpn.common.core.dto.PaySuccessMessage;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import com.letsvpn.pay.entity.*;
 import com.letsvpn.pay.mapper.*;

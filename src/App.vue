@@ -62,7 +62,6 @@ import LoginPanel from './components/LoginPanel.vue';
 import http, { setAuthToken, getStoredToken } from './services/http';
 import {
   hero as heroMock,
-  channels,
   user,
   alerts,
   menuItems,
@@ -192,14 +191,6 @@ const homeMetricsError = ref('');
 const homeMetricsLoading = ref(false);
 const dashboardSummaryError = ref('');
 const dashboardSummaryLoading = ref(false);
-const channelKeyword = ref('');
-const statusFilter = ref('all');
-const channelStatusOptions = [
-  { label: '全部状态', value: 'all' },
-  { label: '平稳', value: '平稳' },
-  { label: '监控', value: '监控' },
-  { label: '紧急', value: '紧急' }
-];
 
 const SUMMARY_POLL_INTERVAL = 5 * 60 * 1000;
 let summaryPollTimer = null;
@@ -414,28 +405,6 @@ onBeforeUnmount(() => {
   stopSummaryPolling();
 });
 
-const filteredChannels = computed(() => {
-  const keyword = channelKeyword.value.trim().toLowerCase();
-  return channels.filter((channel) => {
-    const matchesStatus = statusFilter.value === 'all' || channel.status === statusFilter.value;
-    if (!keyword) {
-      return matchesStatus;
-    }
-    const haystack = [
-      channel.id,
-      channel.country,
-      channel.countryTag,
-      channel.description,
-      ...(channel.businessTypes ?? [])
-    ];
-    const matchesKeyword = haystack.some((item) =>
-      String(item ?? '')
-        .toLowerCase()
-        .includes(keyword)
-    );
-    return matchesStatus && matchesKeyword;
-  });
-});
 
 const isDashboardOverviewActive = computed(
   () => activeParent.value === 'dashboard' && activeChild.value === 'dashboard-overview'
@@ -799,8 +768,8 @@ const handleMenuSelect = ({ parentId, childId }) => {
           v-else-if="isDownloadsHistoryActive"
           :data="downloadsHistoryData"
         />
-        <PaymentsEntityView v-else-if="isPaymentsEntityActive" :data="paymentsEntityData" />
-        <PaymentsChannelView v-else-if="isPaymentsChannelActive" :data="paymentsChannelData" />
+        <PaymentsEntityView v-else-if="isPaymentsEntityActive" />
+        <PaymentsChannelView v-else-if="isPaymentsChannelActive" />
         <PaymentsErrorView v-else-if="isPaymentsErrorActive" :data="paymentsErrorData" />
         <PaymentsRollbackView
           v-else-if="isPaymentsRollbackActive"
@@ -828,56 +797,56 @@ const handleMenuSelect = ({ parentId, childId }) => {
         />
         <PaymentsProfitView v-else-if="isPaymentsProfitActive" :data="paymentsProfitData" />
         <template v-else>
-          <section class="hero-card">
-            <div>
-              <p class="hero-subtitle">{{ heroData.subtitle }}</p>
-              <h1>{{ heroData.title }}</h1>
-              <p class="hero-description">{{ heroData.description }}</p>
-              <ul class="hero-metrics">
-                <li>
-                  <span class="label">在运营国家</span>
-                  <span class="value">{{ homeMetrics.operatingCountries.length || 0 }}</span>
-                </li>
-                <li>
-                  <span class="label">活跃通道</span>
-                  <span class="value">{{ homeMetrics.activeChannelCount }}</span>
-                </li>
-                <li>
-                  <span class="label">分钟级 SLA</span>
-                  <span class="value">{{ homeMetrics.minuteLevelSla }}</span>
-                </li>
-              </ul>
-            </div>
-            <div class="hero-cta">
-              <p class="cta-title">{{ heroData.cta.title }}</p>
-              <p class="cta-description">{{ heroData.cta.description }}</p>
-              <button type="button">{{ heroData.cta.action }}</button>
-            </div>
-          </section>
-          <p v-if="homeMetricsLoading" class="metrics-hint">首页指标加载中...</p>
-          <p v-else-if="homeMetricsError" class="metrics-error">{{ homeMetricsError }}</p>
+          <div class="quick-links">
+            <button
+              class="ql-card"
+              @click="activeParent = 'dashboard'; activeChild = 'dashboard-overview'"
+            >
+              <svg class="ql-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4l2.5 2.5"/>
+                <path d="M7.5 15.5a6 6 0 1 1 9 0"/>
+              </svg>
+              <span class="ql-title">Dashboard</span>
+              <span class="ql-sub">查看数据报表</span>
+            </button>
+            <button
+              class="ql-card"
+              @click="activeParent = 'orders'; activeChild = 'orders-payin'"
+            >
+              <svg class="ql-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+              <span class="ql-title">订单</span>
+              <span class="ql-sub">查看所有订单</span>
+            </button>
+            <button
+              class="ql-card"
+              @click="activeParent = 'system'; activeChild = 'system-settings'"
+            >
+              <svg class="ql-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span class="ql-title">设置</span>
+              <span class="ql-sub">系统设置</span>
+            </button>
+            <button class="ql-card ql-card--disabled" disabled>
+              <svg class="ql-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span class="ql-title">帮助</span>
+              <span class="ql-sub">帮助文档</span>
+            </button>
+          </div>
 
           <section class="channel-section">
-            <div class="section-header">
-              <div>
-                <p class="eyebrow">重点观察</p>
-                <h2>跨国通道运行状态</h2>
-                <p class="muted">共 {{ channels.length }} 条记录，当前显示 {{ filteredChannels.length }} 条</p>
-              </div>
-              <div class="section-actions">
-                <input
-                  v-model="channelKeyword"
-                  type="search"
-                  placeholder="搜索国家 / 通道 / 业务类型"
-                />
-                <select v-model="statusFilter">
-                  <option v-for="option in channelStatusOptions" :key="option.value" :value="option.value">
-                    {{ option.label }}
-                  </option>
-                </select>
-              </div>
-            </div>
-            <ChannelCards :channels="filteredChannels" />
+            <ChannelCards />
           </section>
         </template>
       </main>
@@ -910,141 +879,60 @@ const handleMenuSelect = ({ parentId, childId }) => {
   gap: 32px;
 }
 
-.hero-card {
+.quick-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 24px;
-  padding: 32px;
-  border-radius: 28px;
-  background: linear-gradient(135deg, rgba(89, 92, 255, 0.5), rgba(18, 24, 45, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.metrics-hint,
-.metrics-error {
-  font-size: 12px;
-  margin-top: -8px;
-  margin-bottom: 16px;
-}
-
-.metrics-hint {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.metrics-error {
-  color: #ff8c8c;
-}
-
-.hero-subtitle {
-  letter-spacing: 0.3em;
-  font-size: 12px;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.hero-description {
-  color: rgba(255, 255, 255, 0.7);
-  margin: 16px 0;
-}
-
-.hero-metrics {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  padding: 0;
-  list-style: none;
 }
 
-.hero-metrics li {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 12px 18px;
-}
-
-.hero-metrics .label {
-  display: block;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.hero-metrics .value {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.hero-cta {
-  align-self: center;
-  background: rgba(6, 6, 12, 0.35);
-  border-radius: 24px;
-  padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.cta-title {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.cta-description {
-  color: rgba(255, 255, 255, 0.7);
-  margin: 8px 0 16px;
-}
-
-.hero-cta button {
-  padding: 10px 24px;
-  border-radius: 999px;
-  border: none;
-  background: #ffae6d;
-  color: #1d0f05;
-  font-weight: 600;
+.ql-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
   cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  color: #fff;
+  text-align: center;
+}
+
+.ql-card:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ql-card--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ql-icon {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ql-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.ql-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .channel-section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-
-.section-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.muted {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.section-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.section-actions input,
-.section-actions select {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 10px 14px;
-  color: #fff;
-}
-
-.section-actions input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.section-actions select {
-  min-width: 140px;
+  flex: 1;
+  min-height: 0;
 }
 
 .login-wrapper {

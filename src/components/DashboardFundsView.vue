@@ -1,395 +1,401 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
-import http from '../services/http';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import http from '../services/http.js';
+import { AREA_TYPE_MAP } from '../data/constants.js';
 
-const { data } = defineProps({
-  data: {
-    type: Object,
-    required: true
-  }
-});
+defineProps({ data: { type: Object, default: null } });
 
-const severityClassMap = {
-  高: 'severity-high',
-  中: 'severity-medium',
-  低: 'severity-low'
-};
-
-const getSeverityClass = (severity) => severityClassMap[severity] ?? 'severity-low';
-
-// ── 实时订单详情 ─────────────────────────────────────────────────
-const periodOptions = [
-  { label: '今天', value: 'today' },
-  { label: '一周内', value: '1w' },
-  { label: '两周内', value: '2w' }
+// ── Constants ─────────────────────────────────────────────────────────
+const DATE_OPTIONS = [
+  { label: 'Today',      value: 'today' },
+  { label: 'This Week',  value: 'week'  },
+  { label: 'This Month', value: 'month' },
 ];
 
-const payConfigOptions = ref([]);
-const selectedPeriod = ref('today');
-const selectedPayConfigId = ref('');
+const CURRENCY_OPTIONS = Object.entries(AREA_TYPE_MAP).map(([id, info]) => ({
+  id: Number(id),
+  currencyCode: info.currencyCode,
+  label: info.label,
+}));
 
-const tableRows = ref([]);
-const tableTotal = ref(0);
-const tablePage = ref(1);
-const tablePageSize = ref(10);
-const tableLoading = ref(false);
-const tableError = ref('');
+// ── Filter state ──────────────────────────────────────────────────────
+const dateType         = ref('month');
+const dateDropdownOpen = ref(false);
+const dateDropdownRef  = ref(null);
 
-const paginationSizes = [10, 20, 50];
+const merchantOptions      = ref([]);
+const merchantSearch       = ref('');
+const merchantDropdownOpen = ref(false);
+const merchantDropdownRef  = ref(null);
+const pendingPlatformIds   = ref([]);
+const appliedPlatformIds   = ref([]);
 
-const totalPages = computed(() => {
-  if (!tableTotal.value) {
-    return 1;
-  }
-  return Math.max(1, Math.ceil(tableTotal.value / tablePageSize.value));
+const currencyDropdownOpen = ref(false);
+const currencyDropdownRef  = ref(null);
+const pendingAreaTypes     = ref([]);
+const appliedAreaTypes     = ref([]);
+
+const refIdDropdownOpen = ref(false);
+const refIdDropdownRef  = ref(null);
+const pendingRefId      = ref('');
+const appliedRefId      = ref('');
+
+// ── Table state ───────────────────────────────────────────────────────
+const tableRows     = ref([]);
+const tableTotal    = ref(0);
+const tablePage     = ref(1);
+const tablePageSize = ref(20);
+const tableLoading  = ref(false);
+const tableError    = ref('');
+
+const totalPages = computed(() =>
+  tableTotal.value ? Math.max(1, Math.ceil(tableTotal.value / tablePageSize.value)) : 1
+);
+const pageStart = computed(() => (tablePage.value - 1) * tablePageSize.value + 1);
+const pageEnd   = computed(() => Math.min(tablePage.value * tablePageSize.value, tableTotal.value));
+
+// ── Date ──────────────────────────────────────────────────────────────
+const currentDateLabel = computed(
+  () => DATE_OPTIONS.find(d => d.value === dateType.value)?.label ?? 'This Month'
+);
+
+const selectDate = (val) => {
+  dateType.value = val;
+  dateDropdownOpen.value = false;
+  tablePage.value = 1;
+  fetchFundFlow();
+};
+
+// ── Merchant dropdown ─────────────────────────────────────────────────
+const filteredMerchants = computed(() => {
+  const q = merchantSearch.value.trim().toLowerCase();
+  return q
+    ? merchantOptions.value.filter(m => m.account.toLowerCase().includes(q))
+    : merchantOptions.value;
 });
 
-const tableColumns = [
-  { key: 'id', label: 'ID' },
-  { key: 'orderId', label: '订单号' },
-  { key: 'platformId', label: '平台ID' },
-  { key: 'frontId', label: '商户订单号' },
-  { key: 'payConfigId', label: '支付配置ID' },
-  { key: 'userId', label: '用户ID' },
-  { key: 'gameId', label: '游戏ID' },
-  { key: 'status', label: '状态' },
-  { key: 'reqAmount', label: '请求金额' },
-  { key: 'realAmount', label: '实际金额' },
-  { key: 'payTime', label: '支付时间' },
-  { key: 'createTime', label: '创建时间' },
-  { key: 'createStatus', label: '创建状态' },
-  { key: 'createIp', label: '创建IP' },
-  { key: 'noticeStatus', label: '通知状态' },
-  { key: 'noticeTime', label: '通知时间' },
-  { key: 'payConfigChannelId', label: '渠道ID' },
-  { key: 'otherOrderId', label: '上游订单号' },
-  { key: 'onLineId', label: '在线ID' },
-  { key: 'remark', label: '备注' },
-  { key: 'extend1', label: '扩展1' },
-  { key: 'extend2', label: '扩展2' },
-  { key: 'extend3', label: '扩展3' },
-  { key: 'syncStatus', label: '同步状态' },
-  { key: 'settleAmount', label: '结算金额' },
-  { key: 'upi', label: 'UPI' }
-];
+const allMerchantsSelected = computed(() =>
+  filteredMerchants.value.length > 0 &&
+  filteredMerchants.value.every(m => pendingPlatformIds.value.includes(m.platformId))
+);
 
-const formatDateTime = (value) => {
-  if (!value) {
-    return '—';
+const toggleSelectAllMerchants = () => {
+  if (allMerchantsSelected.value) {
+    const ids = filteredMerchants.value.map(m => m.platformId);
+    pendingPlatformIds.value = pendingPlatformIds.value.filter(id => !ids.includes(id));
+  } else {
+    const ids = filteredMerchants.value.map(m => m.platformId);
+    pendingPlatformIds.value = [...new Set([...pendingPlatformIds.value, ...ids])];
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString('zh-CN', { hour12: false });
 };
 
-const formatNumber = (value, digits = 2) => {
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-  const num = Number(value);
-  if (Number.isNaN(num)) {
-    return value;
-  }
-  return num.toLocaleString('zh-CN', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits
-  });
+const openMerchantDropdown = () => {
+  pendingPlatformIds.value = [...appliedPlatformIds.value];
+  merchantSearch.value = '';
+  merchantDropdownOpen.value = true;
 };
 
-const displayCell = (row, key) => {
-  const value = row?.[key];
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-  if (key.toLowerCase().includes('time')) {
-    return formatDateTime(value);
-  }
-  if (key.toLowerCase().includes('amount')) {
-    return formatNumber(value);
-  }
-  return value;
+const applyMerchantFilter = () => {
+  appliedPlatformIds.value = [...pendingPlatformIds.value];
+  merchantDropdownOpen.value = false;
+  tablePage.value = 1;
+  fetchFundFlow();
 };
 
-const fetchPayConfigIds = async () => {
+const merchantBtnLabel = computed(() => {
+  const n = appliedPlatformIds.value.length;
+  if (!n) return 'Merchant';
+  if (n === 1) return merchantOptions.value.find(m => m.platformId === appliedPlatformIds.value[0])?.account ?? '1 selected';
+  return `${n} selected`;
+});
+
+// ── Currency dropdown ─────────────────────────────────────────────────
+const allCurrenciesSelected = computed(() =>
+  CURRENCY_OPTIONS.every(c => pendingAreaTypes.value.includes(c.id))
+);
+
+const toggleSelectAllCurrencies = () => {
+  pendingAreaTypes.value = allCurrenciesSelected.value ? [] : CURRENCY_OPTIONS.map(c => c.id);
+};
+
+const openCurrencyDropdown = () => {
+  pendingAreaTypes.value = [...appliedAreaTypes.value];
+  currencyDropdownOpen.value = true;
+};
+
+const applyCurrencyFilter = () => {
+  appliedAreaTypes.value = [...pendingAreaTypes.value];
+  currencyDropdownOpen.value = false;
+  tablePage.value = 1;
+  fetchFundFlow();
+};
+
+const currencyBtnLabel = computed(() => {
+  const n = appliedAreaTypes.value.length;
+  if (!n) return 'Currency';
+  if (n === 1) return CURRENCY_OPTIONS.find(c => c.id === appliedAreaTypes.value[0])?.currencyCode ?? '1 selected';
+  return `${n} selected`;
+});
+
+// ── RefId dropdown ────────────────────────────────────────────────────
+const openRefIdDropdown = () => {
+  pendingRefId.value = appliedRefId.value;
+  refIdDropdownOpen.value = true;
+};
+
+const applyRefIdFilter = () => {
+  appliedRefId.value = pendingRefId.value.trim();
+  refIdDropdownOpen.value = false;
+  tablePage.value = 1;
+  fetchFundFlow();
+};
+
+const refIdBtnLabel = computed(() => appliedRefId.value || 'Ref ID');
+
+// ── API ───────────────────────────────────────────────────────────────
+const fetchMerchants = async () => {
   try {
-    const { data: response } = await http.get('/admin/pay/dashboard/payConfigIds');
-    payConfigOptions.value = response?.data ?? response ?? [];
-  } catch (error) {
-    console.error('Failed to load payConfigIds', error);
-    payConfigOptions.value = [];
+    const { data: resp } = await http.get('/admin/fund-flow/merchants');
+    merchantOptions.value = resp?.data ?? resp ?? [];
+  } catch (e) {
+    console.error('Failed to load merchants', e);
   }
 };
 
-const fetchChannelStats = async () => {
+const fetchFundFlow = async () => {
   tableLoading.value = true;
   tableError.value = '';
   try {
     const params = {
-      period: selectedPeriod.value,
+      dateType: dateType.value,
       pageNum: tablePage.value,
-      pageSize: tablePageSize.value
+      pageSize: tablePageSize.value,
     };
-    if (selectedPayConfigId.value !== '') {
-      params.payConfigId = Number(selectedPayConfigId.value);
-    }
-    const { data: response } = await http.get('/admin/pay/dashboard/channelStat', { params });
-    const payload = response?.data ?? response;
-    tableRows.value = payload?.records ?? [];
-    tableTotal.value = payload?.total ?? 0;
-    tablePage.value = payload?.current ?? payload?.pageNum ?? tablePage.value;
-    tablePageSize.value = payload?.size ?? payload?.pageSize ?? tablePageSize.value;
-  } catch (error) {
-    console.error('Failed to load channel stats', error);
-    tableError.value = '无法加载通道统计';
-    tableRows.value = [];
+    if (appliedPlatformIds.value.length) params.platformIds = appliedPlatformIds.value.join(',');
+    if (appliedAreaTypes.value.length)   params.areaTypes   = appliedAreaTypes.value.join(',');
+    if (appliedRefId.value)              params.refId        = appliedRefId.value;
+
+    const { data: resp } = await http.get('/admin/fund-flow/list', { params });
+    const payload = resp?.data ?? resp;
+    tableRows.value  = payload?.records ?? [];
+    tableTotal.value = payload?.total   ?? 0;
+    tablePage.value  = Number(payload?.current ?? tablePage.value);
+  } catch (e) {
+    console.error('Failed to load fund flow', e);
+    tableError.value = '加载失败，请稍后重试';
+    tableRows.value  = [];
     tableTotal.value = 0;
   } finally {
     tableLoading.value = false;
   }
 };
 
-const handleFilterChange = () => {
-  tablePage.value = 1;
-  fetchChannelStats();
+// ── Pagination ────────────────────────────────────────────────────────
+const changePage = (next) => {
+  if (next < 1 || next > totalPages.value || next === tablePage.value) return;
+  tablePage.value = next;
+  fetchFundFlow();
 };
 
-const changePage = (nextPage) => {
-  if (nextPage < 1 || nextPage > totalPages.value || nextPage === tablePage.value) {
-    return;
-  }
-  tablePage.value = nextPage;
-  fetchChannelStats();
+// ── Formatting ────────────────────────────────────────────────────────
+const fmtDate = (val) => {
+  if (!val) return '—';
+  const d = new Date(val);
+  if (isNaN(d)) return val;
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const changePageSize = (nextSize) => {
-  tablePageSize.value = nextSize;
-  tablePage.value = 1;
-  fetchChannelStats();
+const fmtNum = (val) => {
+  if (val === null || val === undefined || val === '') return '—';
+  const n = Number(val);
+  if (isNaN(n)) return String(val);
+  return n.toLocaleString('en', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 };
 
-watch(selectedPeriod, handleFilterChange);
-watch(selectedPayConfigId, handleFilterChange);
+// ── Outside click ─────────────────────────────────────────────────────
+const handleOutsideClick = (e) => {
+  if (merchantDropdownOpen.value  && merchantDropdownRef.value  && !merchantDropdownRef.value.contains(e.target))  merchantDropdownOpen.value  = false;
+  if (currencyDropdownOpen.value  && currencyDropdownRef.value  && !currencyDropdownRef.value.contains(e.target))  currencyDropdownOpen.value  = false;
+  if (refIdDropdownOpen.value     && refIdDropdownRef.value     && !refIdDropdownRef.value.contains(e.target))     refIdDropdownOpen.value     = false;
+  if (dateDropdownOpen.value      && dateDropdownRef.value      && !dateDropdownRef.value.contains(e.target))      dateDropdownOpen.value      = false;
+};
 
 onMounted(async () => {
-  await fetchPayConfigIds();
-  await fetchChannelStats();
+  document.addEventListener('click', handleOutsideClick);
+  await fetchMerchants();
+  await fetchFundFlow();
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick);
 });
 </script>
 
 <template>
   <div class="funds-view">
-    <section class="panel hero gradient">
-      <div>
-        <p class="eyebrow">{{ data.hero.eyebrow }}</p>
-        <h2>{{ data.hero.title }}</h2>
-        <p class="muted">{{ data.hero.description }}</p>
-      </div>
-      <p class="muted">{{ data.hero.sync }}</p>
-    </section>
-
-    <!-- ── 通道监控 · 实时订单详情 ────────────────────────────── -->
     <section class="panel channel-stats-panel">
-      <header class="channel-stats-header">
-        <div>
-          <p class="eyebrow">通道监控</p>
-          <h3>实时订单详情</h3>
+
+      <!-- ── Filter Bar ──────────────────────────────────────────── -->
+      <div class="filter-bar">
+
+        <!-- Date -->
+        <div class="filter-group" ref="dateDropdownRef">
+          <span class="filter-label">Date <span class="required">*</span></span>
+          <div class="filter-date-row">
+            <button class="date-chip" @click.stop="dateDropdownOpen = !dateDropdownOpen">
+              {{ currentDateLabel }}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="refresh-icon"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+            </button>
+            <div v-if="dateDropdownOpen" class="date-dropdown" @click.stop>
+              <button
+                v-for="opt in DATE_OPTIONS"
+                :key="opt.value"
+                class="date-opt"
+                :class="{ active: dateType === opt.value }"
+                @click="selectDate(opt.value)"
+              >{{ opt.label }}</button>
+            </div>
+          </div>
         </div>
-        <div class="channel-stat-filters">
-          <label>
-            <span>时间段</span>
-            <select v-model="selectedPeriod">
-              <option v-for="option in periodOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-          <label>
-            <span>支付配置</span>
-            <select v-model="selectedPayConfigId">
-              <option value="">全部配置</option>
-              <option v-for="id in payConfigOptions" :key="id" :value="id">
-                {{ id }}
-              </option>
-            </select>
-          </label>
+
+        <!-- Merchant -->
+        <div class="filter-group" ref="merchantDropdownRef">
+          <button class="filter-chip" :class="{ 'has-value': appliedPlatformIds.length }" @click.stop="openMerchantDropdown">
+            <span class="chip-icon">T</span>
+            {{ merchantBtnLabel }}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div v-if="merchantDropdownOpen" class="multi-dropdown" @click.stop>
+            <input v-model="merchantSearch" class="dropdown-search" placeholder="Search the list" autofocus />
+            <div class="dropdown-list">
+              <label class="dropdown-item select-all">
+                <input type="checkbox" :checked="allMerchantsSelected" @change="toggleSelectAllMerchants" />
+                <span>Select all</span>
+              </label>
+              <label v-for="m in filteredMerchants" :key="m.platformId" class="dropdown-item">
+                <input type="checkbox" :value="m.platformId" v-model="pendingPlatformIds" />
+                <span>{{ m.account }}</span>
+              </label>
+              <p v-if="!filteredMerchants.length" class="empty-hint">无匹配项</p>
+            </div>
+            <div class="dropdown-footer">
+              <button class="add-filter-btn" @click="applyMerchantFilter">Add filter</button>
+            </div>
+          </div>
         </div>
-      </header>
-      <div class="channel-table-wrapper">
-        <p v-if="tableError" class="error-text">{{ tableError }}</p>
-        <p v-else-if="tableLoading" class="muted">正在加载通道数据...</p>
-        <table v-if="!tableLoading">
+
+        <!-- Currency -->
+        <div class="filter-group" ref="currencyDropdownRef">
+          <button class="filter-chip" :class="{ 'has-value': appliedAreaTypes.length }" @click.stop="openCurrencyDropdown">
+            <span class="chip-icon">T</span>
+            {{ currencyBtnLabel }}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div v-if="currencyDropdownOpen" class="multi-dropdown" @click.stop>
+            <div class="dropdown-list">
+              <label class="dropdown-item select-all">
+                <input type="checkbox" :checked="allCurrenciesSelected" @change="toggleSelectAllCurrencies" />
+                <span>Select all</span>
+              </label>
+              <label v-for="c in CURRENCY_OPTIONS" :key="c.id" class="dropdown-item">
+                <input type="checkbox" :value="c.id" v-model="pendingAreaTypes" />
+                <span>{{ c.currencyCode }} · {{ c.label }}</span>
+              </label>
+            </div>
+            <div class="dropdown-footer">
+              <button class="add-filter-btn" @click="applyCurrencyFilter">Add filter</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ref ID -->
+        <div class="filter-group" ref="refIdDropdownRef">
+          <button class="filter-chip" :class="{ 'has-value': appliedRefId }" @click.stop="openRefIdDropdown">
+            <span class="chip-icon">T</span>
+            {{ refIdBtnLabel }}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div v-if="refIdDropdownOpen" class="refid-dropdown" @click.stop>
+            <input
+              v-model="pendingRefId"
+              class="dropdown-search"
+              placeholder="Enter Ref ID..."
+              @keydown.enter="applyRefIdFilter"
+              autofocus
+            />
+            <div class="dropdown-footer">
+              <button class="add-filter-btn" @click="applyRefIdFilter">Add filter</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── Table header ────────────────────────────────────────── -->
+      <div class="table-header-row">
+        <span class="table-title">Merchant Account Log</span>
+        <span v-if="tableLoading" class="loading-hint">加载中...</span>
+        <span v-if="tableError" class="error-hint">{{ tableError }}</span>
+      </div>
+
+      <!-- ── Table ───────────────────────────────────────────────── -->
+      <div class="table-wrapper">
+        <table>
           <thead>
             <tr>
-              <th v-for="column in tableColumns" :key="column.key">{{ column.label }}</th>
+              <th>ID <span class="sort-arrow">↑</span></th>
+              <th>Merchant <span class="sort-arrow">↑</span></th>
+              <th class="num-col"><span class="sort-arrow">↑</span> Amount</th>
+              <th class="num-col"><span class="sort-arrow">↑</span> Remain</th>
+              <th>Currency <span class="sort-arrow">↑</span></th>
+              <th>Reason <span class="sort-arrow">↑</span></th>
+              <th>Ref ID <span class="sort-arrow">↑</span></th>
+              <th>Local Time <span class="sort-arrow">↑</span></th>
+              <th class="num-col"><span class="sort-arrow">↑</span> Order Amount</th>
+              <th class="num-col"><span class="sort-arrow">↑</span> Order Fee</th>
+              <th>Type <span class="sort-arrow">↑</span></th>
+              <th>Out Trade No <span class="sort-arrow">↑</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!tableRows.length">
-              <td :colspan="tableColumns.length" class="empty-cell">暂无数据</td>
+            <tr v-if="!tableRows.length && !tableLoading">
+              <td colspan="12" class="empty-cell">暂无数据</td>
             </tr>
-            <tr v-for="(row, index) in tableRows" :key="row.id ?? row.orderId ?? index">
-              <td v-for="column in tableColumns" :key="column.key">
-                {{ displayCell(row, column.key) }}
+            <tr v-for="row in tableRows" :key="row.id">
+              <td class="id-cell">{{ row.id }}</td>
+              <td>{{ row.merchant ?? '—' }}</td>
+              <td class="num-col">{{ fmtNum(row.amount) }}</td>
+              <td class="num-col">{{ fmtNum(row.remain) }}</td>
+              <td>{{ row.currency ?? '—' }}</td>
+              <td>{{ row.reason ?? '—' }}</td>
+              <td class="refid-cell">{{ row.refId ?? '—' }}</td>
+              <td class="time-cell">{{ fmtDate(row.localTime) }}</td>
+              <td class="num-col">{{ row.orderAmount != null ? fmtNum(row.orderAmount) : '—' }}</td>
+              <td class="num-col">{{ row.orderFee != null ? fmtNum(row.orderFee) : '—' }}</td>
+              <td>
+                <span class="type-badge" :class="row.type === 'INCREASE' ? 'increase' : 'decrease'">
+                  {{ row.type === 'INCREASE' ? 'Increase' : 'Decrease' }}
+                </span>
               </td>
+              <td class="trade-no-cell">{{ row.outTradeNo ?? '—' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- ── Pagination ──────────────────────────────────────────── -->
       <div class="pagination-bar">
-        <div class="page-info">
-          共 {{ tableTotal }} 条 · 第 {{ tablePage }} / {{ totalPages }} 页
-        </div>
-        <div class="pagination-controls">
-          <button type="button" class="ghost-btn" :disabled="tablePage <= 1" @click="changePage(tablePage - 1)">
-            上一页
-          </button>
-          <button
-            type="button"
-            class="ghost-btn"
-            :disabled="tablePage >= totalPages"
-            @click="changePage(tablePage + 1)"
-          >
-            下一页
-          </button>
-          <label>
-            <span>每页</span>
-            <select :value="tablePageSize" @change="changePageSize(Number($event.target.value))">
-              <option v-for="size in paginationSizes" :key="size" :value="size">{{ size }}</option>
-            </select>
-          </label>
+        <span class="page-count">
+          Rows {{ tableTotal ? pageStart : 0 }}-{{ pageEnd }} of first {{ tableTotal }}
+        </span>
+        <div class="page-nav">
+          <button class="nav-btn" :disabled="tablePage <= 1" @click="changePage(tablePage - 1)">&#8249;</button>
+          <button class="nav-btn" :disabled="tablePage >= totalPages" @click="changePage(tablePage + 1)">&#8250;</button>
         </div>
       </div>
+
     </section>
-
-    <section class="stat-grid">
-      <article v-for="stat in data.stats" :key="stat.id" class="panel stat-card">
-        <p class="label">{{ stat.label }}</p>
-        <p class="value">{{ stat.value }}</p>
-        <p class="meta">{{ stat.meta }}</p>
-      </article>
-    </section>
-
-    <section class="balances-streams">
-      <article class="panel balances">
-        <header>
-          <p class="eyebrow">币种头寸</p>
-          <h3>余额与占用</h3>
-        </header>
-        <div class="balance-list">
-          <div v-for="row in data.balances" :key="row.id" class="balance-row">
-            <div>
-              <p class="label">{{ row.label }}</p>
-              <p class="value">{{ row.value }}</p>
-            </div>
-            <div class="progress">
-              <span :style="{ width: `${row.utilization}%` }" />
-            </div>
-            <strong>{{ row.utilization }}%</strong>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel streams">
-        <header>
-          <p class="eyebrow">资金流</p>
-          <h3>入出款趋势</h3>
-        </header>
-        <ul>
-          <li v-for="stream in data.streams" :key="stream.id">
-            <div>
-              <p class="label">{{ stream.label }}</p>
-              <p class="value">{{ stream.value }}</p>
-            </div>
-            <span class="trend" :class="stream.type">{{ stream.trend }}</span>
-          </li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="panel ledger">
-      <header>
-        <p class="eyebrow">流水明细</p>
-        <h3>最近动作</h3>
-      </header>
-      <table>
-        <thead>
-          <tr>
-            <th>时间</th>
-            <th>通道</th>
-            <th>方向</th>
-            <th>金额</th>
-            <th>账户</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in data.ledger" :key="item.id">
-            <td>{{ item.time }}</td>
-            <td>{{ item.channel }}</td>
-            <td>{{ item.direction }}</td>
-            <td>{{ item.amount }}</td>
-            <td>{{ item.account }}</td>
-            <td>{{ item.status }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section class="pipelines-alerts">
-      <article class="panel pipelines">
-        <header>
-          <p class="eyebrow">资金流转</p>
-          <h3>在途 & 待复核</h3>
-        </header>
-        <div class="pipeline-list">
-          <div v-for="pipe in data.pipelines" :key="pipe.id" class="pipeline-row">
-            <p class="title">{{ pipe.label }}</p>
-            <ul>
-              <li v-for="item in pipe.items" :key="item">{{ item }}</li>
-            </ul>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel alerts">
-        <header>
-          <p class="eyebrow">告警</p>
-          <h3>头寸风险</h3>
-        </header>
-        <div class="alert-list">
-          <div v-for="alert in data.alerts" :key="alert.id" class="alert-row">
-            <span class="severity" :class="getSeverityClass(alert.severity)">{{ alert.severity }}</span>
-            <div>
-              <p class="title">{{ alert.title }}</p>
-              <p class="detail">{{ alert.detail }}</p>
-              <p class="action">{{ alert.action }}</p>
-            </div>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <section class="panel transfers">
-      <header>
-        <p class="eyebrow">调拨计划</p>
-        <h3>执行进度</h3>
-      </header>
-      <div class="transfer-list">
-        <div v-for="transfer in data.transfers" :key="transfer.id" class="transfer-row">
-          <div>
-            <p class="title">{{ transfer.title }}</p>
-            <p class="meta">{{ transfer.owner }} · {{ transfer.eta }}</p>
-          </div>
-          <div class="progress">
-            <span :style="{ width: `${transfer.progress}%` }" />
-          </div>
-          <span class="percent">{{ transfer.progress }}%</span>
-        </div>
-      </div>
-    </section>
-
   </div>
 </template>
 
@@ -407,315 +413,259 @@ onMounted(async () => {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.gradient {
-  background: linear-gradient(135deg, rgba(70, 98, 255, 0.65), rgba(13, 17, 33, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.muted {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.stat-card {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.stat-card .label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-card .value {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 8px 0 4px;
-}
-
-.balances-streams {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.balance-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.balance-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 60px;
-  gap: 12px;
-  align-items: center;
-}
-
-.balance-row .progress,
-.transfers .progress {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-}
-
-.balance-row .progress span,
-.transfers .progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(120deg, rgba(134, 140, 255, 0.8), rgba(92, 230, 255, 0.7));
-}
-
-.streams ul {
-  list-style: none;
-  padding: 0;
-  margin: 12px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.streams li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.streams .trend.in {
-  color: #4ade80;
-}
-
-.streams .trend.out {
-  color: #f87171;
-}
-
-.ledger table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin-top: 12px;
-}
-
-.ledger th {
-  text-align: left;
-  padding: 10px 0;
-  color: rgba(255, 255, 255, 0.6);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.ledger td {
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.pipelines-alerts {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
-.pipeline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.pipeline-row {
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.pipeline-row ul {
-  list-style: none;
-  padding: 0;
-  margin: 10px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.alerts .alert-row {
-  display: flex;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.severity-high {
-  background: rgba(244, 114, 182, 0.18);
-  color: #f472b6;
-}
-
-.severity-medium {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
-}
-
-.severity-low {
-  background: rgba(34, 197, 94, 0.18);
-  color: #22c55e;
-}
-
-.alerts .severity {
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.transfers .transfer-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 60px;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.percent {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* ── 通道监控 · 实时订单详情 ──────────────────────────────────── */
 .channel-stats-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.channel-stats-header {
+/* ── Filter Bar ──────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-group { position: relative; }
+
+.filter-label {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.required { color: #60a5fa; }
+
+.filter-date-row { position: relative; }
+
+.date-chip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.channel-stat-filters {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.channel-stat-filters label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.channel-stat-filters select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
-  padding: 6px 12px;
-  border-radius: 12px;
-  min-width: 140px;
-}
-
-.channel-table-wrapper {
-  overflow-x: auto;
-}
-
-.channel-table-wrapper table {
-  width: 100%;
-  border-collapse: collapse;
+  gap: 8px;
+  background: rgba(96, 165, 250, 0.2);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  color: #93c5fd;
+  padding: 7px 14px;
+  border-radius: 999px;
   font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.date-chip:hover { background: rgba(96, 165, 250, 0.3); }
+.refresh-icon { opacity: 0.8; }
+
+.date-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #1a1d2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 200;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 
-.channel-table-wrapper th,
-.channel-table-wrapper td {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+.date-opt {
+  display: block;
+  width: 100%;
   text-align: left;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.date-opt:hover, .date-opt.active {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+}
+
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.75);
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: background 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
+.filter-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.filter-chip.has-value {
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #93c5fd;
+  background: rgba(96, 165, 250, 0.1);
+}
+.chip-icon { font-size: 11px; font-weight: 700; opacity: 0.7; }
 
-.channel-table-wrapper th {
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 500;
+.multi-dropdown,
+.refid-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: #1a1d2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  z-index: 200;
+  min-width: 220px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  overflow: hidden;
 }
 
-.channel-table-wrapper td {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.channel-table-wrapper .empty-cell {
-  text-align: center;
-  padding: 20px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.pagination-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.page-info {
+.dropdown-search {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 10px 14px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  outline: none;
+  box-sizing: border-box;
 }
+.dropdown-search::placeholder { color: rgba(255, 255, 255, 0.35); }
 
-.pagination-controls {
+.dropdown-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.dropdown-list::-webkit-scrollbar { width: 4px; }
+.dropdown-list::-webkit-scrollbar-track { background: transparent; }
+.dropdown-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+.dropdown-item {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.pagination-controls select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff;
-  padding: 4px 10px;
-  border-radius: 10px;
-}
-
-.ghost-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: transparent;
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 999px;
+  padding: 8px 14px;
   cursor: pointer;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background 0.1s;
+}
+.dropdown-item:hover { background: rgba(255, 255, 255, 0.06); }
+.dropdown-item.select-all {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
+}
+.dropdown-item input[type="checkbox"] { accent-color: #60a5fa; width: 15px; height: 15px; flex-shrink: 0; }
+
+.empty-hint { padding: 12px 14px; font-size: 12px; color: rgba(255,255,255,0.4); margin: 0; }
+
+.dropdown-footer {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: flex-end;
 }
 
-.ghost-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.add-filter-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
+.add-filter-btn:hover { background: rgba(255, 255, 255, 0.14); }
 
-.error-text {
-  color: #ff8e8e;
-  margin-bottom: 8px;
-}
+/* ── Table ───────────────────────────────────────────────────────────── */
+.table-header-row { display: flex; align-items: center; gap: 12px; }
+.table-title { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.loading-hint { font-size: 12px; color: rgba(255, 255, 255, 0.45); }
+.error-hint { font-size: 12px; color: #f87171; }
 
-@media (max-width: 960px) {
-  .balance-row,
-  .transfers .transfer-row {
-    grid-template-columns: 1fr;
-  }
+.table-wrapper { overflow-x: auto; }
+.table-wrapper::-webkit-scrollbar { height: 4px; }
+.table-wrapper::-webkit-scrollbar-track { background: transparent; }
+.table-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+thead th {
+  padding: 10px 14px;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
 }
+thead th.num-col { text-align: right; }
+.sort-arrow { font-size: 10px; opacity: 0.5; }
+
+tbody td {
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+}
+tbody tr:hover td { background: rgba(255, 255, 255, 0.025); }
+td.num-col { text-align: right; }
+td.id-cell { color: #60a5fa; cursor: pointer; }
+td.refid-cell, td.trade-no-cell {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+td.time-cell { font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.empty-cell { text-align: center; padding: 40px 0; color: rgba(255, 255, 255, 0.35); }
+
+.type-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.type-badge.increase { background: rgba(74, 222, 128, 0.12); color: #4ade80; }
+.type-badge.decrease { background: rgba(248, 113, 113, 0.12); color: #f87171; }
+
+/* ── Pagination ──────────────────────────────────────────────────────── */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.page-count { font-size: 13px; color: rgba(255, 255, 255, 0.5); }
+.page-nav { display: flex; gap: 4px; }
+.nav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.nav-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 </style>

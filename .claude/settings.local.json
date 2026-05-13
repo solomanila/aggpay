@@ -47,7 +47,9 @@
       "Bash(grep -E \"\\\\.java$\")",
       "Bash(dir \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\pay-service\\\\src\\\\main\\\\java\\\\com\\\\letsvpn\\\\pay\")",
       "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\")",
-      "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\gateway\\\\src\\\\main\\\\resources\")"
+      "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\gateway\\\\src\\\\main\\\\resources\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\admin-service\" -Recurse -Force)",
+      "Bash(Select-Object -First 50 FullName)"
     ]
   }
 }
