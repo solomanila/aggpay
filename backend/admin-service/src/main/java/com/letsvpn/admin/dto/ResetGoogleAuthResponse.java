@@ -1,0 +1,13 @@
+package com.letsvpn.admin.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class ResetGoogleAuthResponse {
+    private String googleSecret;
+    private String otpAuthUrl;
+}
