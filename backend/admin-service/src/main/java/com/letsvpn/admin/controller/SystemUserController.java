@@ -1,7 +1,12 @@
 package com.letsvpn.admin.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.letsvpn.admin.dto.ResetGoogleAuthResponse;
+import com.letsvpn.admin.dto.ResetPasswordResponse;
+import com.letsvpn.admin.dto.SystemUserPageItemVO;
+import com.letsvpn.admin.dto.SystemUserPageRequest;
 import com.letsvpn.admin.dto.SystemUserUpdateRequest;
 import com.letsvpn.admin.dto.SystemUserVO;
 import com.letsvpn.admin.entity.SystemUserAuth;
@@ -18,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,6 +38,21 @@ public class SystemUserController {
     private final SystemUserAuthService systemUserAuthService;
     private final ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
+
+    @GetMapping("/page")
+    public R<IPage<SystemUserPageItemVO>> pageUsers(SystemUserPageRequest request) {
+        return R.success(systemUserAuthService.pageUsers(request));
+    }
+
+    @PostMapping("/{id}/reset-password")
+    public R<ResetPasswordResponse> resetPassword(@PathVariable Long id) {
+        return R.success(systemUserAuthService.resetPassword(id));
+    }
+
+    @PostMapping("/{id}/reset-google-auth")
+    public R<ResetGoogleAuthResponse> resetGoogleAuth(@PathVariable Long id) {
+        return R.success(systemUserAuthService.resetGoogleAuth(id));
+    }
 
     @GetMapping
     public R<List<SystemUserVO>> listUsers() {

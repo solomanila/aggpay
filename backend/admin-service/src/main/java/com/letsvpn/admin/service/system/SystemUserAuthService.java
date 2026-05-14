@@ -1,6 +1,11 @@
 package com.letsvpn.admin.service.system;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.letsvpn.admin.dto.ResetGoogleAuthResponse;
+import com.letsvpn.admin.dto.ResetPasswordResponse;
+import com.letsvpn.admin.dto.SystemUserPageItemVO;
+import com.letsvpn.admin.dto.SystemUserPageRequest;
 import com.letsvpn.admin.entity.SystemUserAuth;
 import com.letsvpn.common.core.dto.AdminLoginRequest;
 import com.letsvpn.common.core.dto.AdminLoginResponse;
@@ -16,12 +21,15 @@ public interface SystemUserAuthService extends IService<SystemUserAuth> {
 
     AdminLoginResponse verifyLogin(AdminLoginRequest request);
 
-    /**
-     * Returns the OTP auth URL for the given account, if a Google secret exists.
-     */
     String getOtpAuthUrl(String account);
 
     void logout(String token);
 
     void evictUserCache();
+
+    IPage<SystemUserPageItemVO> pageUsers(SystemUserPageRequest request);
+
+    ResetPasswordResponse resetPassword(Long id);
+
+    ResetGoogleAuthResponse resetGoogleAuth(Long id);
 }

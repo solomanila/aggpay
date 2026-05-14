@@ -4,12 +4,15 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.letsvpn.admin.constant.SystemCacheKeys;
+import com.letsvpn.admin.dto.TelegramSettingDTO;
 import com.letsvpn.admin.entity.SystemSetting;
 import com.letsvpn.admin.entity.SystemSettingAudit;
 import com.letsvpn.admin.mapper.SystemSettingMapper;
 import com.letsvpn.admin.service.system.SystemSettingAuditService;
 import com.letsvpn.admin.service.system.SystemSettingService;
+import com.letsvpn.common.core.util.AuthContextHolder;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,5 +81,49 @@ public class SystemSettingServiceImpl extends ServiceImpl<SystemSettingMapper, S
     @Override
     public void evictCache() {
         stringRedisTemplate.delete(SystemCacheKeys.SETTINGS_ALL);
+    }
+
+    private static final String TELEGRAM_KEY = "telegram";
+
+    @Override
+    public TelegramSettingDTO getTelegramSettings() {
+        SystemSetting setting = lambdaQuery()
+                .eq(SystemSetting::getSettingKey, TELEGRAM_KEY)
+                .one();
+        if (setting == null || !StringUtils.hasText(setting.getValue())) {
+            return new TelegramSettingDTO();
+        }
+        try {
+            return objectMapper.readValue(setting.getValue(), TelegramSettingDTO.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse telegram settings", e);
+            return new TelegramSettingDTO();
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateTelegramSettings(TelegramSettingDTO dto) {
+        String jsonValue;
+        try {
+            jsonValue = objectMapper.writeValueAsString(dto);
+        } catch (Exception e) {
+            throw new IllegalStateException("序列化配置失败");
+        }
+        Long operatorId = AuthContextHolder.getUserId();
+        SystemSetting setting = lambdaQuery()
+                .eq(SystemSetting::getSettingKey, TELEGRAM_KEY)
+                .one();
+        if (setting == null) {
+            setting = new SystemSetting();
+            setting.setSettingKey(TELEGRAM_KEY);
+            setting.setSettingName("Telegram配置");
+            setting.setValueType("json");
+            setting.setCategory("telegram");
+            setting.setStatus("ACTIVE");
+        }
+        setting.setValue(jsonValue);
+        setting.setUpdatedAt(LocalDateTime.now());
+        saveOrUpdateSetting(setting, operatorId, setting.getId() == null ? "CREATE" : "UPDATE");
     }
 }

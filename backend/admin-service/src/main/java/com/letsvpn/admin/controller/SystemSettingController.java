@@ -1,6 +1,7 @@
 package com.letsvpn.admin.controller;
 
 import com.letsvpn.admin.dto.SystemSettingUpsertRequest;
+import com.letsvpn.admin.dto.TelegramSettingDTO;
 import com.letsvpn.admin.entity.SystemSetting;
 import com.letsvpn.admin.service.system.SystemSettingService;
 import com.letsvpn.common.core.response.R;
@@ -23,6 +24,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class SystemSettingController {
 
     private final SystemSettingService systemSettingService;
+
+    @GetMapping("/telegram")
+    public R<TelegramSettingDTO> getTelegramSettings() {
+        return R.success(systemSettingService.getTelegramSettings());
+    }
+
+    @PutMapping("/telegram")
+    public R<Void> updateTelegramSettings(@RequestBody TelegramSettingDTO dto) {
+        systemSettingService.updateTelegramSettings(dto);
+        return R.success();
+    }
 
     @GetMapping
     public R<List<SystemSetting>> list(@RequestParam(value = "category", required = false) String category) {

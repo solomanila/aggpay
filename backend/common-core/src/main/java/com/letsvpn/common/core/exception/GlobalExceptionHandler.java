@@ -14,6 +14,16 @@ public class GlobalExceptionHandler {
         return R.fail(e.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public R<String> handleIllegalArgument(IllegalArgumentException e) {
+        return R.fail(e.getMessage());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public R<String> handleIllegalState(IllegalStateException e) {
+        return R.fail(e.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     public R<String> handleException(Exception e) {
         log.error("Unhandled exception: {}", e.getMessage(), e);

@@ -49,7 +49,11 @@
       "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\")",
       "PowerShell(cmd /c \"dir D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\gateway\\\\src\\\\main\\\\resources\")",
       "Bash(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\admin-service\" -Recurse -Force)",
-      "Bash(Select-Object -First 50 FullName)"
+      "Bash(Select-Object -First 50 FullName)",
+      "Bash(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\" -Directory)",
+      "Bash(Select-Object Name)",
+      "PowerShell(ls \"D:\\\\ideaprojects\\\\payadmin-ui\" | ? {$_.PSIsContainer})",
+      "PowerShell(Head *)"
     ]
   }
 }

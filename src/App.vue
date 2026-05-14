@@ -130,9 +130,86 @@ const dashboardOverviewData = ref(cloneDeep(dashboardOverviewMock));
 const timezone = ref(timezones[2] ?? 'UTC+00:00');
 const language = ref(languages[0] ?? '中文');
 
-const [firstMenu] = menuItems;
-const activeParent = ref(firstMenu?.id ?? '');
-const activeChild = ref(firstMenu?.children?.[0]?.id ?? '');
+const activeParent = ref('');
+const activeChild = ref('');
+
+// ── Tab persistence ──────────────────────────────────────────────────
+const TABS_KEY = 'payadmin_tabs_v1';
+const ACTIVE_TAB_KEY = 'payadmin_active_tab_v1';
+const tabs = ref([]);
+const activeTabId = ref('');
+
+// Build label lookup from static menu definition
+const menuLabelMap = (() => {
+  const m = new Map();
+  menuItems.forEach((p) => {
+    if (!p.children.length) m.set(p.id, p.label);
+    p.children.forEach((c) => m.set(c.id, c.label));
+  });
+  return m;
+})();
+
+const saveTabs = () => {
+  localStorage.setItem(TABS_KEY, JSON.stringify(tabs.value));
+  localStorage.setItem(ACTIVE_TAB_KEY, activeTabId.value);
+};
+
+const restoreTabs = () => {
+  try {
+    const savedTabs = JSON.parse(localStorage.getItem(TABS_KEY) || '[]');
+    const savedActive = localStorage.getItem(ACTIVE_TAB_KEY) || '';
+    if (savedTabs.length) {
+      tabs.value = savedTabs;
+      const active = savedTabs.find((t) => t.id === savedActive) || savedTabs[0];
+      activeTabId.value = active.id;
+      activeParent.value = active.parentId;
+      activeChild.value = active.childId;
+    }
+  } catch { /* ignore */ }
+};
+
+const openOrActivateTab = (parentId, childId) => {
+  const id = childId || parentId;
+  const existing = tabs.value.find((t) => t.id === id);
+  if (existing) {
+    activeTabId.value = id;
+  } else {
+    const label = menuLabelMap.get(id) || id;
+    tabs.value.push({ id, parentId, childId: childId || '', label });
+    activeTabId.value = id;
+  }
+  activeParent.value = parentId;
+  activeChild.value = childId || '';
+  saveTabs();
+};
+
+const closeTab = (tabId, event) => {
+  event?.stopPropagation();
+  const idx = tabs.value.findIndex((t) => t.id === tabId);
+  if (idx === -1) return;
+  tabs.value.splice(idx, 1);
+  if (activeTabId.value === tabId) {
+    const next = tabs.value[idx] ?? tabs.value[idx - 1];
+    if (next) {
+      activeTabId.value = next.id;
+      activeParent.value = next.parentId;
+      activeChild.value = next.childId;
+    } else {
+      activeTabId.value = '';
+      activeParent.value = '';
+      activeChild.value = '';
+    }
+  }
+  saveTabs();
+};
+
+const switchTab = (tab) => {
+  if (activeTabId.value === tab.id) return;
+  activeTabId.value = tab.id;
+  activeParent.value = tab.parentId;
+  activeChild.value = tab.childId;
+  saveTabs();
+};
 
 // ── 动态菜单权限 ──────────────────────────────────────────────────
 // null = 未加载，fallback 到 mock 全量；[] = 已加载但无权限
@@ -173,9 +250,16 @@ const fetchVisibleMenus = async () => {
   }
 };
 
-// 过滤后菜单变化时，若当前 activeParent 不在可见列表则重置
+// 权限菜单加载后，若当前激活页签的父菜单已无权限，切到第一个合法页签
 watch(filteredMenuItems, (items) => {
-  if (items.length && !items.find((i) => i.id === activeParent.value)) {
+  if (!items.length || !activeParent.value) return;
+  if (items.find((i) => i.id === activeParent.value)) return;
+  const validTab = tabs.value.find((t) => items.find((i) => i.id === t.parentId));
+  if (validTab) {
+    activeTabId.value = validTab.id;
+    activeParent.value = validTab.parentId;
+    activeChild.value = validTab.childId;
+  } else {
     activeParent.value = items[0].id;
     activeChild.value = items[0].children?.[0]?.id ?? '';
   }
@@ -326,6 +410,12 @@ const handleLogout = async () => {
     isAuthenticated.value = false;
     apiMenuTree.value = null;
     stopSummaryPolling();
+    tabs.value = [];
+    activeTabId.value = '';
+    activeParent.value = '';
+    activeChild.value = '';
+    localStorage.removeItem(TABS_KEY);
+    localStorage.removeItem(ACTIVE_TAB_KEY);
   }
 };
 
@@ -399,6 +489,9 @@ watch(isAuthenticated, (loggedIn) => {
 
 onMounted(() => {
   bootstrapAuthState();
+  if (getStoredToken()) {
+    restoreTabs();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -627,20 +720,10 @@ const isMerchantApiDocsActive = computed(
   () => activeParent.value === 'docs' && activeChild.value === 'docs-api'
 );
 const handleMenuSelect = ({ parentId, childId }) => {
-  if (!parentId && !childId) {
-    activeParent.value = '';
-    activeChild.value = '';
-    return;
-  }
-  if (parentId && parentId !== activeParent.value) {
-    activeParent.value = parentId;
-    const parent = filteredMenuItems.value.find((item) => item.id === parentId);
-    activeChild.value = childId ?? parent?.children?.[0]?.id ?? '';
-    return;
-  }
-  if (childId) {
-    activeChild.value = childId;
-  }
+  if (!parentId && !childId) return;
+  const parent = filteredMenuItems.value.find((i) => i.id === parentId);
+  const resolvedChild = childId || parent?.children?.[0]?.id || '';
+  openOrActivateTab(parentId, resolvedChild);
 };
 </script>
 
@@ -668,7 +751,22 @@ const handleMenuSelect = ({ parentId, childId }) => {
         :active-child="activeChild"
         @select="handleMenuSelect"
       />
-      <main class="main-content">
+      <div class="content-area">
+        <!-- Tab bar -->
+        <div v-if="tabs.length" class="tab-bar">
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-item"
+            :class="{ active: tab.id === activeTabId }"
+            @click="switchTab(tab)"
+          >
+            <span class="tab-label">{{ tab.label }}</span>
+            <button class="tab-close" @click="closeTab(tab.id, $event)">×</button>
+          </div>
+        </div>
+
+        <main class="main-content">
         <MerchantDashboardView v-if="isMerchantDashboardActive" />
         <DashboardOverview v-else-if="isDashboardOverviewActive" :data="dashboardOverviewData" />
         <DashboardChannelView
@@ -759,11 +857,8 @@ const handleMenuSelect = ({ parentId, childId }) => {
           :data="financeAgentWithdrawData"
         />
         <SystemBillingView v-else-if="isSystemBillingActive" :data="systemBillingData" />
-        <SystemUsersView v-else-if="isSystemUsersActive" :data="systemUsersData" />
-        <SystemSettingsView
-          v-else-if="isSystemSettingsActive"
-          :data="systemSettingsData"
-        />
+        <SystemUsersView v-else-if="isSystemUsersActive" />
+        <SystemSettingsView v-else-if="isSystemSettingsActive" />
         <DownloadsHistoryView
           v-else-if="isDownloadsHistoryActive"
           :data="downloadsHistoryData"
@@ -850,6 +945,7 @@ const handleMenuSelect = ({ parentId, childId }) => {
           </section>
         </template>
       </main>
+      </div>
     </div>
   </div>
 </template>
@@ -867,12 +963,95 @@ const handleMenuSelect = ({ parentId, childId }) => {
 .layout {
   display: flex;
   flex: 1;
+  min-height: 0;
+}
+
+.content-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  background: rgba(8, 9, 22, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 0 16px;
+  height: 38px;
+  cursor: pointer;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  transition: background 0.15s, color 0.15s;
+  position: relative;
+  user-select: none;
+}
+
+.tab-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.tab-item.active {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #6366f1;
+  border-radius: 2px 2px 0 0;
+}
+
+.tab-label { font-size: 13px; }
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 3px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.tab-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .main-content {
   flex: 1;
   min-width: 0;
   overflow-x: auto;
+  overflow-y: auto;
   padding: 32px;
   display: flex;
   flex-direction: column;
@@ -948,12 +1127,7 @@ const handleMenuSelect = ({ parentId, childId }) => {
   }
 
   .main-content {
-    padding: 24px;
-  }
-
-  .section-actions {
-    width: 100%;
-    flex-direction: column;
+    padding: 16px;
   }
 }
 </style>

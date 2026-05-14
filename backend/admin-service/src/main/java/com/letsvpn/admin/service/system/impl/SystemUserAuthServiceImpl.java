@@ -1,9 +1,16 @@
 package com.letsvpn.admin.service.system.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.letsvpn.admin.constant.SystemCacheKeys;
+import com.letsvpn.admin.dto.ResetGoogleAuthResponse;
+import com.letsvpn.admin.dto.ResetPasswordResponse;
+import com.letsvpn.admin.dto.SystemUserPageItemVO;
+import com.letsvpn.admin.dto.SystemUserPageRequest;
 import com.letsvpn.admin.entity.SystemUserAuth;
 import com.letsvpn.admin.mapper.SystemUserAuthMapper;
 import com.letsvpn.admin.service.system.SystemUserAuthService;
@@ -14,7 +21,9 @@ import com.letsvpn.common.core.dto.AdminLoginResponse;
 import com.letsvpn.common.core.dto.AdminRegisterRequest;
 import com.letsvpn.common.core.dto.AdminRegisterResponse;
 import com.letsvpn.common.core.util.JwtUtils;
+import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -158,6 +167,79 @@ public class SystemUserAuthServiceImpl extends ServiceImpl<SystemUserAuthMapper,
     @Override
     public void evictUserCache() {
         stringRedisTemplate.delete(SystemCacheKeys.USER_LIST);
+    }
+
+    @Override
+    public IPage<SystemUserPageItemVO> pageUsers(SystemUserPageRequest request) {
+        LambdaQueryWrapper<SystemUserAuth> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(request.getNameOrEmail())) {
+            String kw = request.getNameOrEmail().trim();
+            wrapper.and(w -> w.like(SystemUserAuth::getName, kw).or().like(SystemUserAuth::getEmail, kw));
+        }
+        if (StringUtils.hasText(request.getCreateStartTime())) {
+            wrapper.ge(SystemUserAuth::getCreatedAt, LocalDate.parse(request.getCreateStartTime()).atStartOfDay());
+        }
+        if (StringUtils.hasText(request.getCreateEndTime())) {
+            wrapper.le(SystemUserAuth::getCreatedAt, LocalDate.parse(request.getCreateEndTime()).atTime(23, 59, 59));
+        }
+        wrapper.orderByDesc(SystemUserAuth::getCreatedAt);
+        Page<SystemUserAuth> page = new Page<>(request.getPageNum(), request.getPageSize());
+        IPage<SystemUserAuth> result = page(page, wrapper);
+        return result.convert(user -> {
+            SystemUserPageItemVO vo = new SystemUserPageItemVO();
+            vo.setId(user.getId());
+            vo.setAccount(user.getAccount());
+            vo.setName(user.getName());
+            vo.setEmail(user.getEmail());
+            vo.setStatus(user.getStatus());
+            vo.setCreatedAt(user.getCreatedAt());
+            vo.setLastLoginAt(user.getLastLoginAt());
+            return vo;
+        });
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResetPasswordResponse resetPassword(Long id) {
+        SystemUserAuth user = getById(id);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        String newPassword = generateRandomPassword();
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordAlgo("bcrypt");
+        user.setPasswordUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        updateById(user);
+        evictUserCache();
+        return new ResetPasswordResponse(newPassword);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResetGoogleAuthResponse resetGoogleAuth(Long id) {
+        SystemUserAuth user = getById(id);
+        if (user == null) {
+            throw new IllegalArgumentException("用户不存在");
+        }
+        String newSecret = GoogleAuthenticatorUtil.generateSecret();
+        user.setGoogleSecret(newSecret);
+        user.setGoogleEnabled(1);
+        user.setUpdatedAt(LocalDateTime.now());
+        updateById(user);
+        evictUserCache();
+        String otpAuthUrl = GoogleAuthenticatorUtil.buildOtpAuthUrl(user.getAccount(), "PayAdmin", newSecret);
+        return new ResetGoogleAuthResponse(newSecret, otpAuthUrl);
+    }
+
+    private String generateRandomPassword() {
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(10);
+        for (int i = 0; i < 10; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     private List<String> parseTags(String tags) {

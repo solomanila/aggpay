@@ -1,521 +1,383 @@
 <script setup>
-const { data } = defineProps({
-  data: {
-    type: Object,
-    required: true
-  }
+import { onMounted, ref } from 'vue';
+import http from '../services/http';
+
+const loading = ref(false);
+const saving = ref(false);
+const loadError = ref('');
+const saveMsg = ref('');
+const saveMsgType = ref('');
+
+const form = ref({
+  iconUrl: '',
+  domain: '',
+  telegramcustomservice: '',
+  customerServiceEmail: '',
+  customerServiceWhatsapp: '',
+  telegramBotToken: '',
+  telegramGroupId: '',
+  payoutNotifyGroupId: '',
+  telegramBotTokenSupplier: '',
+  telegramLoginVerification: false,
+  telegramBotUsername: '',
+  accountingGroupId: ''
 });
 
-const statusClassMap = {
-  生效: 'status-live',
-  灰度: 'status-gray',
-  待发布: 'status-pending'
+const fetchSettings = async () => {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const { data: resp } = await http.get('/admin/system/settings/telegram');
+    const payload = resp?.data ?? resp ?? {};
+    Object.assign(form.value, {
+      iconUrl: payload.iconUrl || '',
+      domain: payload.domain || '',
+      telegramcustomservice: payload.telegramcustomservice || '',
+      customerServiceEmail: payload.customerServiceEmail || '',
+      customerServiceWhatsapp: payload.customerServiceWhatsapp || '',
+      telegramBotToken: payload.telegramBotToken || '',
+      telegramGroupId: payload.telegramGroupId || '',
+      payoutNotifyGroupId: payload.payoutNotifyGroupId || '',
+      telegramBotTokenSupplier: payload.telegramBotTokenSupplier || '',
+      telegramLoginVerification: !!payload.telegramLoginVerification,
+      telegramBotUsername: payload.telegramBotUsername || '',
+      accountingGroupId: payload.accountingGroupId || ''
+    });
+  } catch {
+    loadError.value = '加载配置失败，请刷新重试';
+  } finally {
+    loading.value = false;
+  }
 };
 
-const toggleToneMap = {
-  positive: 'tone-positive',
-  warning: 'tone-warning',
-  info: 'tone-info'
+const handleSubmit = async () => {
+  saving.value = true;
+  saveMsg.value = '';
+  try {
+    await http.put('/admin/system/settings/telegram', form.value);
+    saveMsg.value = '保存成功';
+    saveMsgType.value = 'success';
+  } catch {
+    saveMsg.value = '保存失败，请重试';
+    saveMsgType.value = 'error';
+  } finally {
+    saving.value = false;
+    setTimeout(() => { saveMsg.value = ''; }, 3000);
+  }
 };
 
-const getStatusClass = (status) => statusClassMap[status] ?? 'status-default';
-const getToggleClass = (tone) => toggleToneMap[tone] ?? 'tone-default';
+onMounted(fetchSettings);
 </script>
 
 <template>
-  <div class="system-settings-view">
-    <section class="panel hero gradient">
-      <div>
-        <p class="eyebrow">{{ data.hero.eyebrow }}</p>
-        <h2>{{ data.hero.title }}</h2>
-        <p class="muted">{{ data.hero.description }}</p>
-      </div>
-      <p class="muted">{{ data.hero.sync }}</p>
-    </section>
+  <div class="settings-view">
+    <p v-if="loadError" class="status-msg error">{{ loadError }}</p>
+    <p v-else-if="loading" class="status-msg">加载中...</p>
 
-    <section class="stat-grid">
-      <article v-for="stat in data.stats" :key="stat.id" class="panel stat-card">
-        <p class="label">{{ stat.label }}</p>
-        <p class="value">{{ stat.value }}</p>
-        <p class="meta">{{ stat.meta }}</p>
-      </article>
-    </section>
-
-    <section class="panel overview-card">
-      <header>
-        <p class="eyebrow">基础信息</p>
-        <h3>控制台概览</h3>
-      </header>
-      <div class="overview-grid">
-        <article v-for="item in data.overview" :key="item.id">
-          <p class="label">{{ item.label }}</p>
-          <p class="value">{{ item.value }}</p>
-          <p class="meta">{{ item.meta }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="panel filters-card">
-      <header>
-        <div>
-          <p class="eyebrow">配置列表筛选</p>
-          <h3>状态标签</h3>
+    <form v-else class="settings-form" @submit.prevent="handleSubmit">
+      <!-- 图标 -->
+      <div class="form-row">
+        <label class="form-label">图标</label>
+        <div class="form-field">
+          <div v-if="form.iconUrl" class="icon-preview">
+            <img :src="form.iconUrl" alt="图标" />
+            <button type="button" class="btn-delete" @click="form.iconUrl = ''">删除</button>
+          </div>
+          <input
+            v-else
+            v-model="form.iconUrl"
+            type="text"
+            class="field-input"
+            placeholder="请输入图标URL"
+          />
         </div>
-        <p class="muted">{{ data.filters?.note }}</p>
-      </header>
-      <div class="chips">
-        <button v-for="filter in data.filters?.options ?? []" :key="filter" type="button">
-          {{ filter }}
+      </div>
+
+      <!-- 域名 -->
+      <div class="form-row">
+        <label class="form-label">域名</label>
+        <div class="form-field">
+          <input v-model="form.domain" type="text" class="field-input" placeholder="请输入域名，如：example.com" />
+        </div>
+      </div>
+
+      <!-- 客服telegram -->
+      <div class="form-row">
+        <label class="form-label">客服telegram</label>
+        <div class="form-field">
+          <input v-model="form.telegramcustomservice" type="text" class="field-input" placeholder="@username" />
+        </div>
+      </div>
+
+      <!-- 客服邮箱 -->
+      <div class="form-row">
+        <label class="form-label">客服邮箱</label>
+        <div class="form-field">
+          <input v-model="form.customerServiceEmail" type="text" class="field-input" placeholder="请输入客服邮箱" />
+        </div>
+      </div>
+
+      <!-- 客服Whatsapp -->
+      <div class="form-row">
+        <label class="form-label">客服Whatsapp</label>
+        <div class="form-field">
+          <input v-model="form.customerServiceWhatsapp" type="text" class="field-input" placeholder="请输入Whatsapp号码" />
+        </div>
+      </div>
+
+      <!-- Telegram商户机器人Token -->
+      <div class="form-row">
+        <label class="form-label">Telegram商户机器<br/>人Token</label>
+        <div class="form-field">
+          <input v-model="form.telegramBotToken" type="text" class="field-input" placeholder="请输入Bot Token" />
+          <p class="field-hint">Telegram机器人设置成功</p>
+        </div>
+      </div>
+
+      <!-- Telegram群ID -->
+      <div class="form-row">
+        <label class="form-label">Telegram群ID</label>
+        <div class="form-field">
+          <input v-model="form.telegramGroupId" type="text" class="field-input" placeholder="请输入Telegram群ID" />
+          <p class="field-hint">将向该Telegram群发送重要通知</p>
+        </div>
+      </div>
+
+      <!-- 公众打款通知Telegram群ID -->
+      <div class="form-row">
+        <label class="form-label">公众打款通知<br/>Telegram群ID</label>
+        <div class="form-field">
+          <input v-model="form.payoutNotifyGroupId" type="text" class="field-input" placeholder="请输入Telegram群ID" />
+          <p class="field-hint">将向该Telegram群发送公众打款相关通知</p>
+        </div>
+      </div>
+
+      <!-- Telegram机器人Token(供应商) -->
+      <div class="form-row">
+        <label class="form-label">Telegram机器人<br/>Token(供应商)</label>
+        <div class="form-field">
+          <input v-model="form.telegramBotTokenSupplier" type="text" class="field-input" placeholder="请输入Bot Token" />
+          <p class="field-hint warn">Telegram机器人设置失败，请检查输入的Token</p>
+        </div>
+      </div>
+
+      <!-- Telegram登录验证 -->
+      <div class="form-row">
+        <label class="form-label">Telegram登录验<br/>证</label>
+        <div class="form-field">
+          <div class="toggle-row">
+            <button
+              type="button"
+              class="toggle-btn"
+              :class="{ on: form.telegramLoginVerification }"
+              @click="form.telegramLoginVerification = !form.telegramLoginVerification"
+            >
+              <span class="toggle-knob"></span>
+              <span class="toggle-label">{{ form.telegramLoginVerification ? 'ON' : 'OFF' }}</span>
+            </button>
+          </div>
+          <p class="field-hint">
+            登录时启用Telegram二次确认，请先在Telegram中设置域名。
+            <a href="#" class="field-link">查看</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- 商户机器人的Username -->
+      <div class="form-row">
+        <label class="form-label">商户机器人的<br/>Username</label>
+        <div class="form-field">
+          <input v-model="form.telegramBotUsername" type="text" class="field-input" placeholder="payzay_bot" />
+        </div>
+      </div>
+
+      <!-- 记账电报群ID -->
+      <div class="form-row">
+        <label class="form-label">记账电报群ID</label>
+        <div class="form-field">
+          <input v-model="form.accountingGroupId" type="text" class="field-input" placeholder="请输入电报群ID" />
+        </div>
+      </div>
+
+      <!-- 提示消息 -->
+      <p v-if="saveMsg" class="save-msg" :class="saveMsgType">{{ saveMsg }}</p>
+
+      <!-- 提交 -->
+      <div class="form-submit">
+        <button type="submit" class="btn-submit" :disabled="saving">
+          {{ saving ? '保存中...' : '提交' }}
         </button>
       </div>
-    </section>
-
-    <section class="panel configs-table">
-      <header>
-        <div>
-          <p class="eyebrow">配置项</p>
-          <h3>最新同步</h3>
-        </div>
-        <div class="table-actions">
-          <button
-            v-for="action in data.configActions ?? []"
-            :key="action"
-            class="ghost-btn"
-            type="button"
-          >
-            {{ action }}
-          </button>
-        </div>
-      </header>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>配置名</th>
-            <th>版本</th>
-            <th>所属</th>
-            <th>状态</th>
-            <th>Owner</th>
-            <th>更新时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="config in data.configs ?? []" :key="config.id">
-            <td>{{ config.id }}</td>
-            <td>{{ config.name }}</td>
-            <td>{{ config.version }}</td>
-            <td>{{ config.scope }}</td>
-            <td>
-              <span :class="['status-pill', getStatusClass(config.status)]">
-                {{ config.status }}
-              </span>
-            </td>
-            <td>{{ config.owner }}</td>
-            <td>{{ config.updated }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
-
-    <section class="forms-grid">
-      <article v-for="section in data.forms ?? []" :key="section.id" class="panel form-card">
-        <header>
-          <div>
-            <p class="eyebrow">{{ section.title }}</p>
-            <h3>{{ section.description }}</h3>
-          </div>
-          <button class="ghost-btn" type="button">保存</button>
-        </header>
-        <div class="field-grid">
-          <div
-            v-for="field in section.fields"
-            :key="field.id"
-            class="field"
-            :class="{ disabled: field.disabled }"
-          >
-            <p class="label">{{ field.label }}</p>
-            <p class="value" :class="{ placeholder: !field.value }">
-              {{ field.value || field.placeholder }}
-            </p>
-            <p v-if="field.status" class="badge">{{ field.status }}</p>
-            <p v-if="field.note" class="meta">{{ field.note }}</p>
-          </div>
-        </div>
-      </article>
-    </section>
-
-    <section class="lower-grid">
-      <article class="panel toggles-card">
-        <header>
-          <div>
-            <p class="eyebrow">安全开关</p>
-            <h3>后台防护</h3>
-          </div>
-          <button class="ghost-btn" type="button">配置</button>
-        </header>
-        <ul>
-          <li
-            v-for="toggle in data.toggles ?? []"
-            :key="toggle.id"
-            :class="getToggleClass(toggle.tone)"
-          >
-            <div>
-              <p class="title">{{ toggle.label }}</p>
-              <p class="meta">{{ toggle.description }}</p>
-            </div>
-            <span class="status">{{ toggle.status }}</span>
-          </li>
-        </ul>
-      </article>
-
-      <article class="panel audit-card">
-        <header>
-          <div>
-            <p class="eyebrow">操作记录</p>
-            <h3>近 3 条</h3>
-          </div>
-        </header>
-        <ol>
-          <li v-for="audit in data.auditTrail ?? []" :key="audit.id">
-            <p class="time">{{ audit.time }}</p>
-            <div>
-              <p class="actor">{{ audit.actor }}</p>
-              <p class="meta">{{ audit.action }}</p>
-            </div>
-          </li>
-        </ol>
-      </article>
-
-      <article class="panel quick-links">
-        <header>
-          <div>
-            <p class="eyebrow">快捷操作</p>
-            <h3>常用动作</h3>
-          </div>
-        </header>
-        <div class="link-buttons">
-          <button
-            v-for="link in data.quickLinks ?? []"
-            :key="link"
-            class="ghost-btn secondary"
-            type="button"
-          >
-            {{ link }}
-          </button>
-        </div>
-      </article>
-    </section>
+    </form>
   </div>
 </template>
 
 <style scoped>
-.system-settings-view {
+.settings-view {
+  max-width: 760px;
+}
+
+.status-msg {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 20px 0;
+}
+.status-msg.error { color: #f87171; }
+
+.settings-form {
   display: flex;
   flex-direction: column;
+  gap: 0;
+}
+
+/* 每一行 */
+.form-row {
+  display: flex;
+  align-items: flex-start;
   gap: 24px;
-}
-
-.panel {
-  border-radius: 24px;
-  padding: 24px;
-  background: rgba(12, 14, 35, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.gradient {
-  background: linear-gradient(135deg, rgba(74, 95, 255, 0.7), rgba(11, 16, 32, 0.95));
-  border: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.muted {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.stat-card {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.stat-card .label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-card .value {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 8px 0 4px;
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.overview-grid article {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.overview-grid .label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.overview-grid .value {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.filters-card header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.chips {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 12px;
-}
-
-.chips button {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  padding: 6px 16px;
-}
-
-.configs-table header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.table-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.configs-table table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 16px;
-}
-
-.configs-table th {
-  text-align: left;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: normal;
-  font-size: 13px;
-}
-
-.configs-table td {
   padding: 14px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.form-label {
+  width: 130px;
+  flex-shrink: 0;
   font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  padding-top: 8px;
+  line-height: 1.5;
+  text-align: right;
 }
 
-.status-pill {
-  display: inline-flex;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.status-live {
-  background: rgba(65, 255, 183, 0.2);
-  color: #41ffb7;
-}
-
-.status-gray {
-  background: rgba(140, 140, 251, 0.2);
-  color: #8c8cfb;
-}
-
-.status-pending,
-.status-default {
-  background: rgba(255, 174, 109, 0.2);
-  color: #ffae6d;
-}
-
-.forms-grid {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-}
-
-.form-card header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.field-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
-}
-
-.field {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
+.form-field {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.field.disabled {
-  opacity: 0.6;
-}
-
-.field .label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.field .value {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.field .value.placeholder {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.field .badge {
-  align-self: flex-start;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.field .meta {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.lower-grid {
-  display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
-.toggles-card ul {
-  list-style: none;
-  padding: 0;
-  margin: 20px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.toggles-card li {
-  border-radius: 16px;
-  padding: 16px;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.toggles-card .title {
-  font-weight: 600;
-}
-
-.toggles-card .status {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.tone-positive {
-  background: rgba(65, 255, 183, 0.12);
-}
-
-.tone-warning {
-  background: rgba(255, 174, 109, 0.12);
-}
-
-.tone-info,
-.tone-default {
-  background: rgba(140, 140, 251, 0.12);
-}
-
-.audit-card ol {
-  list-style: none;
-  padding: 0;
-  margin: 20px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.audit-card li {
-  display: flex;
-  gap: 12px;
-}
-
-.audit-card .time {
-  width: 58px;
-  font-weight: 600;
-}
-
-.audit-card .actor {
-  font-weight: 600;
-}
-
-.quick-links .link-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.ghost-btn {
-  border-radius: 12px;
+.field-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  outline: none;
+  box-sizing: border-box;
+}
+.field-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+.field-input:focus { border-color: rgba(99, 102, 241, 0.5); }
+
+.field-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+  line-height: 1.5;
+}
+.field-hint.warn { color: #f87171; }
+
+.field-link {
+  color: #6366f1;
+  text-decoration: none;
+}
+.field-link:hover { text-decoration: underline; }
+
+/* 图标预览 */
+.icon-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.icon-preview img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-delete {
+  padding: 5px 14px;
+  background: #f59e0b;
+  border: none;
+  border-radius: 6px;
   color: #fff;
-  padding: 8px 18px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-delete:hover { background: #d97706; }
+
+/* 开关 */
+.toggle-row {
+  display: flex;
+  align-items: center;
 }
 
-.ghost-btn.secondary {
-  background: rgba(255, 255, 255, 0.04);
+.toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 3px 12px 3px 4px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-@media (max-width: 720px) {
-  .configs-table header,
-  .form-card header,
-  .filters-card header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.toggle-btn.on {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #a5b4fc;
 }
+
+.toggle-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.toggle-btn.on .toggle-knob {
+  background: #6366f1;
+}
+
+/* 保存消息 */
+.save-msg {
+  font-size: 13px;
+  padding: 10px 0 0;
+  margin: 0;
+}
+.save-msg.success { color: #34d399; }
+.save-msg.error { color: #f87171; }
+
+/* 提交按钮区域 */
+.form-submit {
+  padding-top: 20px;
+}
+
+.btn-submit {
+  width: 100%;
+  padding: 12px;
+  background: #2563eb;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  letter-spacing: 0.04em;
+}
+.btn-submit:hover:not(:disabled) { background: #1d4ed8; }
+.btn-submit:disabled { opacity: 0.5; cursor: default; }
 </style>
