@@ -58,6 +58,7 @@ const tableColumns = [
   { key: 'phone',        label: '手机号' },
   { key: 'name',         label: '姓名' },
   { key: 'times',        label: '创建/支付/结算时间' },
+  { key: 'actions',      label: '操作' },
 ];
 
 const formatDateTime = (value) => {
@@ -158,6 +159,85 @@ const changePageSize = (n) => {
   fetchOrders();
 };
 
+// ── 手动回调 ─────────────────────────────────────────────────────────
+const callbackingOrderId  = ref('');
+const callbackMsg         = ref('');
+const confirmRow          = ref(null);
+const showConfirmModal    = ref(false);
+
+const openConfirmModal = (row) => {
+  confirmRow.value       = row;
+  showConfirmModal.value = true;
+};
+
+const closeConfirmModal = () => {
+  showConfirmModal.value = false;
+  confirmRow.value       = null;
+};
+
+const doManualCallback = async () => {
+  const row = confirmRow.value;
+  if (!row) return;
+  closeConfirmModal();
+  callbackingOrderId.value = row.orderId;
+  callbackMsg.value = '';
+  try {
+    const { data: res } = await http.post('/admin/pay/order/manualCallback', null, {
+      params: { orderId: row.orderId },
+    });
+    if (res?.code === 200) {
+      callbackMsg.value = `订单 ${row.orderId} 手动回调成功`;
+    } else {
+      callbackMsg.value = res?.msg || '操作失败';
+    }
+  } catch (e) {
+    callbackMsg.value = e?.response?.data?.msg || '请求失败';
+  } finally {
+    callbackingOrderId.value = '';
+  }
+};
+
+// ── 回调记录 modal ────────────────────────────────────────────────────
+const showCallbackModal  = ref(false);
+const callbackModalTitle = ref('');
+const callbackRecords    = ref([]);
+const callbackLoading    = ref(false);
+const callbackError      = ref('');
+
+const callbackColumns = [
+  { key: 'orderId',    label: '订单号' },
+  { key: 'platformNo', label: '签名' },
+  { key: 'reqUrl',     label: 'Url' },
+  { key: 'param',      label: '请求' },
+  { key: 'respCode',   label: '响应Code' },
+  { key: 'createTime', label: '创建时间' },
+];
+
+const openCallbackModal = async (row) => {
+  callbackModalTitle.value = `回调记录 — ${row.orderId}`;
+  callbackRecords.value    = [];
+  callbackError.value      = '';
+  callbackLoading.value    = true;
+  showCallbackModal.value  = true;
+  try {
+    const { data: res } = await http.get('/admin/pay/order/callbackList', {
+      params: { orderId: row.orderId },
+    });
+    callbackRecords.value = res?.data ?? [];
+  } catch {
+    callbackError.value = '无法加载回调记录';
+  } finally {
+    callbackLoading.value = false;
+  }
+};
+
+const closeCallbackModal = () => { showCallbackModal.value = false; };
+
+const truncate = (str, max = 80) => {
+  if (!str) return '—';
+  return str.length > max ? str.slice(0, max) + '…' : str;
+};
+
 onMounted(async () => {
   await Promise.all([fetchMerchants(), fetchChannels()]);
   await fetchOrders();
@@ -230,6 +310,9 @@ onMounted(async () => {
         </div>
       </div>
 
+      <!-- Callback feedback -->
+      <p v-if="callbackMsg" class="callback-msg">{{ callbackMsg }}</p>
+
       <!-- Table -->
       <div class="table-wrapper">
         <p v-if="tableError" class="error-text">{{ tableError }}</p>
@@ -250,6 +333,21 @@ onMounted(async () => {
                   <span>{{ formatDateTime(row.createTime) }}</span>
                   <span>{{ formatDateTime(row.payTime) }}</span>
                   <span>{{ formatDateTime(row.createdAt) }}</span>
+                </td>
+                <td v-else-if="col.key === 'actions'" class="actions-cell">
+                  <button
+                    class="action-btn callback-btn"
+                    :disabled="callbackingOrderId === row.orderId"
+                    @click="openConfirmModal(row)"
+                  >
+                    {{ callbackingOrderId === row.orderId ? '处理中…' : '手动回调' }}
+                  </button>
+                  <button
+                    class="action-btn log-btn"
+                    @click="openCallbackModal(row)"
+                  >
+                    回调记录
+                  </button>
                 </td>
                 <td v-else :class="col.key === 'status' ? `status-${row.status}` : ''">
                   {{ displayCell(row, col.key) }}
@@ -275,6 +373,67 @@ onMounted(async () => {
         </div>
       </div>
     </section>
+
+    <!-- Manual callback confirm modal -->
+    <Teleport to="body">
+      <div v-if="showConfirmModal" class="modal-mask" @click.self="closeConfirmModal">
+        <div class="modal-box confirm-box">
+          <div class="modal-header">
+            <span class="modal-title">确认手动回调</span>
+            <button class="modal-close" @click="closeConfirmModal">✕</button>
+          </div>
+          <div class="modal-body confirm-body">
+            <p class="confirm-text">确认对以下订单执行手动回调？</p>
+            <p class="confirm-order-id">{{ confirmRow?.orderId }}</p>
+            <p class="confirm-tip">此操作将强制触发支付成功流程，请确保三方已实际到账。</p>
+          </div>
+          <div class="confirm-footer">
+            <button class="ghost-btn" @click="closeConfirmModal">取消</button>
+            <button class="btn-primary btn-danger" @click="doManualCallback">确认执行</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Callback records modal -->
+    <Teleport to="body">
+      <div v-if="showCallbackModal" class="modal-mask" @click.self="closeCallbackModal">
+        <div class="modal-box">
+          <div class="modal-header">
+            <span class="modal-title">{{ callbackModalTitle }}</span>
+            <button class="modal-close" @click="closeCallbackModal">✕</button>
+          </div>
+          <div class="modal-body">
+            <p v-if="callbackLoading" class="muted">正在加载...</p>
+            <p v-else-if="callbackError" class="error-text">{{ callbackError }}</p>
+            <template v-else>
+              <div class="modal-table-wrapper">
+                <table class="modal-table">
+                  <thead>
+                    <tr>
+                      <th v-for="col in callbackColumns" :key="col.key">{{ col.label }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="!callbackRecords.length">
+                      <td :colspan="callbackColumns.length" class="empty-cell">暂无回调记录</td>
+                    </tr>
+                    <tr v-for="(rec, i) in callbackRecords" :key="i">
+                      <td>{{ rec.orderId || '—' }}</td>
+                      <td class="mono-cell">{{ truncate(rec.platformNo) }}</td>
+                      <td class="url-cell">{{ truncate(rec.reqUrl, 60) }}</td>
+                      <td class="param-cell" :title="rec.param">{{ truncate(rec.param) }}</td>
+                      <td>{{ rec.respCode ?? '—' }}</td>
+                      <td>{{ formatDateTime(rec.createTime) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -347,6 +506,12 @@ onMounted(async () => {
   margin-left: auto;
 }
 
+.callback-msg {
+  font-size: 13px;
+  color: #4ade80;
+  padding: 4px 0;
+}
+
 /* Table */
 .table-wrapper { overflow-x: auto; }
 
@@ -394,6 +559,36 @@ td.status-1 { color: #4ade80; }
 td.status-0 { color: #facc15; }
 td.status-2 { color: rgba(255, 255, 255, 0.45); }
 td.status-3 { color: #f87171; }
+
+/* Action buttons */
+.actions-cell {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.action-btn {
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 12px;
+  transition: opacity 0.15s;
+}
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.callback-btn {
+  background: rgba(99, 102, 241, 0.75);
+  color: #fff;
+}
+.callback-btn:hover:not(:disabled) { background: rgba(99, 102, 241, 1); }
+
+.log-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.log-btn:hover { background: rgba(255, 255, 255, 0.18); }
 
 /* Pagination */
 .pagination-bar {
@@ -452,4 +647,160 @@ td.status-3 { color: #f87171; }
 .ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .error-text { color: #ff8e8e; }
+
+/* Modal */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box {
+  background: #15162a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  width: 90vw;
+  max-width: 1000px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.modal-close:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+
+.modal-table-wrapper { overflow-x: auto; }
+
+.modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.modal-table th,
+.modal-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: left;
+}
+
+.modal-table th {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.modal-table td {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.mono-cell {
+  font-family: monospace;
+  font-size: 12px;
+  max-width: 180px;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.url-cell {
+  font-size: 12px;
+  max-width: 200px;
+  word-break: break-all;
+  white-space: normal;
+}
+
+.param-cell {
+  font-size: 12px;
+  max-width: 240px;
+  word-break: break-all;
+  white-space: normal;
+  cursor: help;
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Confirm modal */
+.confirm-box {
+  max-width: 420px;
+  width: 90vw;
+}
+
+.confirm-body {
+  padding: 20px 24px 8px;
+}
+
+.confirm-text {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0 0 10px;
+}
+
+.confirm-order-id {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  font-family: monospace;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  word-break: break-all;
+}
+
+.confirm-tip {
+  font-size: 12px;
+  color: #facc15;
+  margin: 0;
+}
+
+.confirm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.8);
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 1); }
 </style>

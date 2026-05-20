@@ -4,7 +4,10 @@ import com.letsvpn.admin.dto.MerchantBalanceOpRequest;
 import com.letsvpn.admin.entity.MerchantBalance;
 import com.letsvpn.admin.entity.MerchantBalanceLog;
 import com.letsvpn.admin.service.MerchantBalanceService;
+import com.letsvpn.common.core.dto.MerchantBalanceDTO;
 import com.letsvpn.common.core.response.R;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -75,6 +78,22 @@ public class MerchantBalanceController {
         req.setRemark("order_success");
         service.recharge(req, null);
         return R.success(null);
+    }
+
+    /** pay-service 内部调用：批量查询多个商户余额 */
+    @GetMapping("/internal/byPlatformIds")
+    public R<List<MerchantBalanceDTO>> listByPlatformIds(
+            @RequestParam("platformIds") List<Integer> platformIds) {
+        List<MerchantBalance> balances = service.listByPlatformIds(platformIds);
+        List<MerchantBalanceDTO> dtos = balances.stream().map(b -> {
+            MerchantBalanceDTO dto = new MerchantBalanceDTO();
+            dto.setPlatformId(b.getPlatformId());
+            dto.setCurrency(b.getCurrency());
+            dto.setAvailable(b.getAvailable());
+            dto.setFrozen(b.getFrozen());
+            return dto;
+        }).collect(Collectors.toList());
+        return R.success(dtos);
     }
 
     /** 余额流水查询 */

@@ -53,7 +53,16 @@
       "Bash(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\" -Directory)",
       "Bash(Select-Object Name)",
       "PowerShell(ls \"D:\\\\ideaprojects\\\\payadmin-ui\" | ? {$_.PSIsContainer})",
-      "PowerShell(Head *)"
+      "PowerShell(Head *)",
+      "PowerShell(Get-ChildItem \"D:\\\\ideaprojects\\\\payadmin-ui\\\\src\\\\components\\\\\" | Where-Object { $_.Name -match \"onfig\" })",
+      "PowerShell(dir \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\admin-service\\\\src\\\\main\\\\java\\\\\" -Recurse | Where-Object { $_.Name -match \"Config|config\" } | Select-Object FullName)",
+      "Bash(dir D:ideaprojects *、)",
+      "Bash(Get-Content \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\pay-service\\\\src\\\\main\\\\java\\\\com\\\\letsvpn\\\\pay\\\\service\\\\core\\\\DashboardMetricsService.java\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object -First 20)",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\common-data\\\\src\\\\main\" -Directory -Recurse | Where-Object {$_.Name -match \"\\(entity|mapper|dto\\)\"} | Select-Object -First 10)",
+      "Bash(del *)"
     ]
   }
 }

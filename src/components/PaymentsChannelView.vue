@@ -19,13 +19,23 @@ const searchId       = ref('');
 
 // ── channel options dropdown ─────────────────────────────────────
 const channelOptions = ref([]);
-
 const fetchChannelOptions = async () => {
   try {
     const { data: res } = await http.get('/admin/pay/dashboard/allChannelOptions');
     channelOptions.value = res?.data ?? res ?? [];
   } catch {
     channelOptions.value = [];
+  }
+};
+
+// ── entity options (主体) for drawer ─────────────────────────────
+const entityOptions = ref([]);
+const fetchEntityOptions = async () => {
+  try {
+    const { data: res } = await http.get('/admin/pay/dashboard/payConfigInfoOptions');
+    entityOptions.value = res?.data ?? res ?? [];
+  } catch {
+    entityOptions.value = [];
   }
 };
 
@@ -89,7 +99,122 @@ const changePage     = (next) => {
 };
 const changePageSize = (size) => { tablePageSize.value = size; tablePage.value = 1; fetchList(); };
 
-onMounted(() => { fetchChannelOptions(); fetchList(); });
+// ── drawer state ─────────────────────────────────────────────────
+const drawerMode       = ref('');   // 'create' | 'edit'
+const drawerEditId     = ref(null);
+const drawerSubmitting = ref(false);
+const drawerError      = ref('');
+
+// form fields
+const fTitle         = ref('');
+const fChannel       = ref('');    // 通道名称 → jsonParam.channel
+const fCurrency      = ref('');    // 货币 → jsonParam.currency
+const fEntityId      = ref('');    // 主体 → payConfigId
+const fRemark        = ref('');    // 备注 → jsonParam.remark
+const fShareId       = ref(1);     // 通道类型: 1=收款 2=出款
+const fSettleDays    = ref(1);     // 结算周期
+const fSettleStatus  = ref(true);  // 结算状态 true=ON
+const fStatus        = ref(true);  // 启用 true=ON(status=0) false=关(status=1)
+const fMinAmount     = ref(0);
+const fMaxAmount     = ref(500000);
+const fDailyLimit    = ref('');
+const fPendingLimit  = ref('');
+
+const drawerOpen = computed(() => drawerMode.value !== '');
+
+const resetForm = () => {
+  fTitle.value        = '';
+  fChannel.value      = '';
+  fCurrency.value     = '';
+  fEntityId.value     = '';
+  fRemark.value       = '';
+  fShareId.value      = 1;
+  fSettleDays.value   = 1;
+  fSettleStatus.value = true;
+  fStatus.value       = true;
+  fMinAmount.value    = 0;
+  fMaxAmount.value    = 500000;
+  fDailyLimit.value   = '';
+  fPendingLimit.value = '';
+  drawerError.value   = '';
+};
+
+const openCreate = () => {
+  resetForm();
+  drawerMode.value   = 'create';
+  drawerEditId.value = null;
+};
+
+const openEdit = (row) => {
+  resetForm();
+  drawerMode.value   = 'edit';
+  drawerEditId.value = row.id;
+  fTitle.value       = row.title ?? '';
+  // parse jsonParam if available
+  let jp = {};
+  try { jp = row.jsonParam ? JSON.parse(row.jsonParam) : {}; } catch { jp = {}; }
+  fChannel.value      = jp.channel      ?? row.thirdService ?? '';
+  fCurrency.value     = jp.currency     ?? row.currency     ?? '';
+  // configId is pay_config_info.id returned by payChannelPage
+  fEntityId.value     = row.configId != null ? String(row.configId) : '';
+  fRemark.value       = jp.remark       ?? row.remark       ?? '';
+  fShareId.value      = row.shareId     ?? jp.shareId       ?? 1;
+  fSettleDays.value   = jp.settleDays   ?? 1;
+  fSettleStatus.value = jp.settleStatus !== undefined ? Boolean(jp.settleStatus) : true;
+  fStatus.value       = row.status === 0;
+  fMinAmount.value    = jp.minAmount    ?? 0;
+  fMaxAmount.value    = jp.maxAmount    ?? 500000;
+  fDailyLimit.value   = jp.dailyLimit   ?? '';
+  fPendingLimit.value = jp.pendingLimit ?? '';
+};
+
+const closeDrawer = () => {
+  drawerMode.value = '';
+  drawerError.value = '';
+};
+
+const buildJsonParam = () => JSON.stringify({
+  channel:       fChannel.value,
+  currency:      fCurrency.value,
+  remark:        fRemark.value,
+  settleDays:    Number(fSettleDays.value),
+  settleStatus:  fSettleStatus.value,
+  minAmount:     Number(fMinAmount.value),
+  maxAmount:     Number(fMaxAmount.value),
+  dailyLimit:    fDailyLimit.value !== '' ? Number(fDailyLimit.value) : null,
+  pendingLimit:  fPendingLimit.value !== '' ? Number(fPendingLimit.value) : null,
+});
+
+const submitDrawer = async () => {
+  if (!fTitle.value.trim()) { drawerError.value = '请输入名称'; return; }
+  if (!fEntityId.value)     { drawerError.value = '请选择主体'; return; }
+  drawerSubmitting.value = true;
+  drawerError.value = '';
+  try {
+    const payload = {
+      payConfigId: Number(fEntityId.value),
+      title:       fTitle.value.trim(),
+      jsonParam:   buildJsonParam(),
+      status:      fStatus.value ? 0 : 1,
+      shareId:     Number(fShareId.value),
+    };
+    if (drawerMode.value === 'create') {
+      await http.post('/admin/pay/dashboard/payConfigChannelCreate', payload);
+    } else {
+      payload.id = drawerEditId.value;
+      await http.put('/admin/pay/dashboard/payConfigChannelUpdate', payload);
+    }
+    closeDrawer();
+    fetchList();
+  } catch (error) {
+    console.error('Failed to submit channel', error);
+    drawerError.value = drawerMode.value === 'create' ? '新建失败，请重试' : '编辑失败，请重试';
+  } finally {
+    drawerSubmitting.value = false;
+  }
+};
+
+onMounted(() => { fetchChannelOptions(); fetchEntityOptions(); fetchList(); });
 </script>
 
 <template>
@@ -134,7 +259,7 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
 
       <!-- toolbar -->
       <div class="toolbar">
-        <button type="button" class="btn btn-create">新建</button>
+        <button type="button" class="btn btn-create" @click="openCreate">新建</button>
       </div>
 
       <!-- table -->
@@ -171,7 +296,7 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
               </td>
               <td>{{ formatDateTime(row.createTime) }}</td>
               <td class="action-cell">
-                <button type="button" class="icon-btn edit-btn" title="编辑">
+                <button type="button" class="icon-btn edit-btn" title="编辑" @click="openEdit(row)">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -204,6 +329,132 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
         </div>
       </div>
     </section>
+
+    <!-- overlay + drawer -->
+    <Teleport to="body">
+      <div v-if="drawerOpen" class="drawer-overlay" @click.self="closeDrawer" />
+      <div v-if="drawerOpen" class="drawer-panel">
+        <div class="drawer-header">
+          <span class="drawer-title-text">{{ drawerMode === 'create' ? '新建' : '编辑' }}</span>
+          <button type="button" class="drawer-close-btn" @click="closeDrawer">✕</button>
+        </div>
+
+        <div class="drawer-body">
+          <!-- 名称 -->
+          <div class="form-group">
+            <label class="form-label"><span class="req">*</span>名称</label>
+            <input v-model="fTitle" class="form-input" :disabled="drawerSubmitting" />
+          </div>
+
+          <!-- 通道 -->
+          <div class="form-group">
+            <label class="form-label"><span class="req">*</span>通道</label>
+            <input v-model="fChannel" class="form-input" :disabled="drawerSubmitting" placeholder="例: AirPay" />
+          </div>
+
+          <!-- 货币 -->
+          <div class="form-group">
+            <label class="form-label">货币</label>
+            <select v-model="fCurrency" class="form-select" :disabled="drawerSubmitting">
+              <option value=""></option>
+              <option v-for="opt in areaTypeOptions" :key="opt.areaType" :value="opt.currencyCode">
+                {{ opt.currencyCode }} · {{ opt.label }}
+              </option>
+            </select>
+          </div>
+
+          <!-- 主体 -->
+          <div class="form-group">
+            <label class="form-label"><span class="req">*</span>主体</label>
+            <select v-model="fEntityId" class="form-select" :disabled="drawerSubmitting">
+              <option value=""></option>
+              <option v-for="e in entityOptions" :key="e.id" :value="String(e.id)">
+                {{ e.title ?? e.shortCode ?? e.id }}
+              </option>
+            </select>
+          </div>
+
+          <!-- 备注 -->
+          <div class="form-group">
+            <label class="form-label">备注</label>
+            <input v-model="fRemark" class="form-input" :disabled="drawerSubmitting" />
+          </div>
+
+          <!-- 通道类型 -->
+          <div class="form-group">
+            <label class="form-label">通道类型</label>
+            <select v-model="fShareId" class="form-select" :disabled="drawerSubmitting">
+              <option :value="1">收款</option>
+              <option :value="2">出款</option>
+            </select>
+          </div>
+
+          <!-- 结算周期 + 结算状态 -->
+          <div class="form-row">
+            <div class="form-group half">
+              <label class="form-label">结算周期（天）</label>
+              <input v-model.number="fSettleDays" type="number" min="1" class="form-input" :disabled="drawerSubmitting" />
+            </div>
+            <div class="form-group half">
+              <label class="form-label">结算状态</label>
+              <div class="toggle-row">
+                <span class="toggle-switch" :class="{ on: fSettleStatus }" @click="!drawerSubmitting && (fSettleStatus = !fSettleStatus)">
+                  <span class="toggle-thumb" />
+                </span>
+                <span class="toggle-label">{{ fSettleStatus ? 'ON' : 'OFF' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 启用 + 单笔最小金额 -->
+          <div class="form-row">
+            <div class="form-group half">
+              <label class="form-label">启用</label>
+              <div class="toggle-row">
+                <span class="toggle-switch" :class="{ on: fStatus }" @click="!drawerSubmitting && (fStatus = !fStatus)">
+                  <span class="toggle-thumb" />
+                </span>
+                <span class="toggle-label">{{ fStatus ? 'ON' : 'OFF' }}</span>
+              </div>
+            </div>
+            <div class="form-group half">
+              <label class="form-label"><span class="req">*</span>单笔最小金额</label>
+              <input v-model.number="fMinAmount" type="number" min="0" class="form-input" :disabled="drawerSubmitting" />
+            </div>
+          </div>
+
+          <!-- 单笔最大金额 + 当日限额 -->
+          <div class="form-row">
+            <div class="form-group half">
+              <label class="form-label"><span class="req">*</span>单笔最大金额</label>
+              <input v-model.number="fMaxAmount" type="number" min="0" class="form-input" :disabled="drawerSubmitting" />
+            </div>
+            <div class="form-group half">
+              <label class="form-label">当日限额</label>
+              <input v-model="fDailyLimit" type="number" min="0" class="form-input" :disabled="drawerSubmitting" />
+            </div>
+          </div>
+
+          <!-- 当天待结算限额 -->
+          <div class="form-group">
+            <label class="form-label">当天待结算限额</label>
+            <input v-model="fPendingLimit" type="number" min="0" class="form-input" :disabled="drawerSubmitting" />
+          </div>
+
+          <!-- 成本配置 section header -->
+          <div class="section-header">成本配置</div>
+
+          <p v-if="drawerError" class="drawer-error">{{ drawerError }}</p>
+        </div>
+
+        <div class="drawer-footer">
+          <button type="button" class="btn btn-ghost" :disabled="drawerSubmitting" @click="closeDrawer">取消</button>
+          <button type="button" class="btn btn-primary" :disabled="drawerSubmitting" @click="submitDrawer">
+            {{ drawerSubmitting ? '提交中...' : '提交' }}
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -262,10 +513,11 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
 .search-select--wide { min-width: 200px; }
 
 .btn { padding: 8px 18px; border-radius: 10px; font-size: 13px; cursor: pointer; border: none; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary { background: rgba(100, 116, 255, 0.85); color: #fff; }
-.btn-primary:hover { background: rgba(100, 116, 255, 1); }
+.btn-primary:hover:not(:disabled) { background: rgba(100, 116, 255, 1); }
 .btn-ghost { background: rgba(255, 255, 255, 0.07); color: rgba(255, 255, 255, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); }
-.btn-ghost:hover { background: rgba(255, 255, 255, 0.12); }
+.btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
 .btn-create { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
 .btn-create:hover { background: rgba(34, 197, 94, 0.3); }
 
@@ -301,6 +553,7 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.15);
   cursor: default;
+  flex-shrink: 0;
 }
 .toggle-switch.on { background: #3b82f6; }
 .toggle-thumb {
@@ -329,4 +582,140 @@ onMounted(() => { fetchChannelOptions(); fetchList(); });
 .ghost-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .page-num { font-size: 13px; color: #fff; min-width: 20px; text-align: center; }
 .size-select { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: rgba(255, 255, 255, 0.8); padding: 4px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+
+/* ── Drawer ─────────────────────────────────────────── */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: #1a1b2e;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.drawer-title-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.drawer-close-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+.drawer-body {
+  flex: 1;
+  padding: 20px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group.half { flex: 1; min-width: 0; }
+
+.form-row {
+  display: flex;
+  gap: 14px;
+}
+
+.form-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.req { color: #f87171; margin-right: 2px; }
+
+.form-input,
+.form-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  padding: 8px 11px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.form-input::placeholder { color: rgba(255, 255, 255, 0.28); }
+.form-input:focus,
+.form-select:focus { border-color: rgba(127, 133, 249, 0.6); }
+.form-input:disabled,
+.form-select:disabled { opacity: 0.5; cursor: not-allowed; }
+.form-select option { background: #1a1b2e; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.toggle-switch { cursor: pointer; }
+
+.toggle-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 28px;
+}
+
+.section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 6px;
+  margin-top: 4px;
+}
+
+.drawer-error {
+  font-size: 12px;
+  color: #ff8e8e;
+  margin: 0;
+}
+
+.drawer-footer {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
 </style>

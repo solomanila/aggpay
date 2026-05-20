@@ -16,10 +16,17 @@ import com.letsvpn.common.core.dto.PayinOrderVO;
 import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import java.math.BigDecimal;
+import java.util.Date;
+import com.letsvpn.common.core.dto.BillOrderDetailDTO;
+import com.letsvpn.common.core.dto.BillOrderIdsDTO;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
 import com.letsvpn.pay.service.core.DashboardMetricsService;
+import com.letsvpn.pay.service.core.ManualCallbackService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -42,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardMetricsController {
 
     private final DashboardMetricsService dashboardMetricsService;
+    private final ManualCallbackService   manualCallbackService;
 
     @GetMapping("/home/metrics")
     public R<HomeDashboardMetricsResponse> getHomeMetrics() {
@@ -109,6 +117,86 @@ public class DashboardMetricsController {
         return R.success(dashboardMetricsService.getPayConfigInfoList(shortCode, pageNum, pageSize));
     }
 
+    @PostMapping("/dashboard/payConfigInfoCreate")
+    public R<Void> createPayConfigInfo(
+            @RequestParam String title,
+            @RequestParam String url) {
+        dashboardMetricsService.createPayConfigInfo(title, url);
+        return R.success(null);
+    }
+
+    @PutMapping("/dashboard/payConfigInfoUpdate")
+    public R<Void> updatePayConfigInfo(
+            @RequestParam Integer id,
+            @RequestParam String title,
+            @RequestParam String url) {
+        dashboardMetricsService.updatePayConfigInfo(id, title, url);
+        return R.success(null);
+    }
+
+    @GetMapping("/dashboard/payConfigInfoOptions")
+    public R<List<PayConfigInfoDTO>> getPayConfigInfoOptions() {
+        return R.success(dashboardMetricsService.getPayConfigInfoOptions());
+    }
+
+    @PostMapping("/dashboard/payConfigChannelCreate")
+    public R<Void> createPayConfigChannel(@RequestBody PayConfigChannelSaveRequest req) {
+        dashboardMetricsService.createPayConfigChannel(req);
+        return R.success(null);
+    }
+
+    @PutMapping("/dashboard/payConfigChannelUpdate")
+    public R<Void> updatePayConfigChannel(@RequestBody PayConfigChannelSaveRequest req) {
+        dashboardMetricsService.updatePayConfigChannel(req);
+        return R.success(null);
+    }
+
+    @GetMapping("/dashboard/orderSumByChannel")
+    public R<BigDecimal> getOrderSumByChannel(
+            @RequestParam Long channelId,
+            @RequestParam Long startTimeMillis) {
+        return R.success(dashboardMetricsService.getOrderSumByChannel(channelId, new Date(startTimeMillis)));
+    }
+
+    @GetMapping("/dashboard/channelTitleById")
+    public R<String> getChannelTitleById(@RequestParam Long channelId) {
+        return R.success(dashboardMetricsService.getChannelTitleById(channelId));
+    }
+
+    @PutMapping("/dashboard/updateOrderOnlineId")
+    public R<Void> updateOrderOnlineId(
+            @RequestParam Long channelId,
+            @RequestParam Long startTimeMillis,
+            @RequestParam Long billId) {
+        dashboardMetricsService.updateOrderOnlineId(channelId, new Date(startTimeMillis), billId);
+        return R.success(null);
+    }
+
+    @PostMapping("/dashboard/manualCallback")
+    public R<Void> manualCallback(@RequestParam String orderId) {
+        try {
+            manualCallbackService.manualCallback(orderId);
+            return R.success(null);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @GetMapping("/dashboard/orderDetailsByBillId")
+    public R<List<BillOrderDetailDTO>> getOrderDetailsByBillId(@RequestParam Long billId) {
+        return R.success(dashboardMetricsService.getOrderDetailsByBillId(billId));
+    }
+
+    @PostMapping("/dashboard/orderIdsByBillIds")
+    public R<List<BillOrderIdsDTO>> getOrderIdsByBillIds(@RequestBody List<Long> billIds) {
+        return R.success(dashboardMetricsService.getOrderIdsByBillIds(billIds));
+    }
+
+    @GetMapping("/dashboard/orderCallbackList")
+    public R<List<OrderCallbackDTO>> getOrderCallbackList(@RequestParam String orderId) {
+        return R.success(dashboardMetricsService.getOrderCallbackList(orderId));
+    }
+
     @GetMapping("/dashboard/orderBuildErrorList")
     public R<Page<OrderBuildErrorDTO>> getOrderBuildErrorList(
             @RequestParam(value = "mdcId", required = false) String mdcId,
@@ -135,6 +223,24 @@ public class DashboardMetricsController {
             @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
             @RequestParam(value = "pageSize", defaultValue = "20") long pageSize) {
         return R.success(dashboardMetricsService.getChannelStats(
+                id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/channelStatPayout")
+    public R<Page<PayinOrderVO>> getChannelStatsPayout(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
+            @RequestParam(value = "createStartTime", required = false) String createStartTime,
+            @RequestParam(value = "createEndTime", required = false) String createEndTime,
+            @RequestParam(value = "payStartTime", required = false) String payStartTime,
+            @RequestParam(value = "payEndTime", required = false) String payEndTime,
+            @RequestParam(value = "channelId", required = false) Long channelId,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "account", required = false) String account,
+            @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "20") long pageSize) {
+        return R.success(dashboardMetricsService.getChannelStatsPayout(
                 id, otherOrderId, createStartTime, createEndTime,
                 payStartTime, payEndTime, channelId, status, account, pageNum, pageSize));
     }
@@ -242,6 +348,16 @@ public class DashboardMetricsController {
             @RequestParam(value = "pageSize",  defaultValue = "20") long pageSize) {
         return R.success(dashboardMetricsService
                 .getPayinSummaryPage(startTime, areaType, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/payoutSummaryPage")
+    public R<Page<PayinSummaryRowDTO>> getPayoutSummaryPage(
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "areaType",  required = false) Integer areaType,
+            @RequestParam(value = "pageNum",   defaultValue = "1")  long pageNum,
+            @RequestParam(value = "pageSize",  defaultValue = "20") long pageSize) {
+        return R.success(dashboardMetricsService
+                .getPayoutSummaryPage(startTime, areaType, pageNum, pageSize));
     }
 
     @GetMapping("/dashboard/dailyChannelPlatformStats")

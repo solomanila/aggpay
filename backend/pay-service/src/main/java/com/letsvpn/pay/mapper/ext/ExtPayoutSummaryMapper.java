@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
-public interface ExtPayinSummaryMapper {
+public interface ExtPayoutSummaryMapper {
 
     @Select("""
             <script>
@@ -26,7 +26,7 @@ public interface ExtPayinSummaryMapper {
                 ) AS successRate
             FROM order_info a
             LEFT JOIN pay_config_channel b ON a.pay_config_channel_id = b.id
-            WHERE b.share_id = 1
+            WHERE b.share_id = 2
             AND (#{startTime} IS NULL OR a.create_time >= #{startTime})
             <if test="platformIds != null and platformIds.size() > 0">
                 AND a.platform_id IN
@@ -38,7 +38,7 @@ public interface ExtPayinSummaryMapper {
             ORDER BY DATE(a.create_time) DESC
             </script>
             """)
-    IPage<PayinSummaryRowDTO> selectPayinSummaryPage(
+    IPage<PayinSummaryRowDTO> selectPayoutSummaryPage(
             IPage<PayinSummaryRowDTO> page,
             @Param("startTime")   String startTime,
             @Param("platformIds") List<Integer> platformIds);

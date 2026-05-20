@@ -17,10 +17,16 @@ import com.letsvpn.admin.constant.AreaTypeConstants;
 import com.letsvpn.admin.entity.SystemUserAuth;
 import com.letsvpn.admin.mapper.SystemUserAuthMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.math.BigDecimal;
+import java.util.Date;
+import com.letsvpn.common.core.dto.BillOrderDetailDTO;
+import com.letsvpn.common.core.dto.BillOrderIdsDTO;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
 import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
 import com.letsvpn.common.core.dto.PayinOrderVO;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
@@ -163,6 +169,90 @@ public class PayServiceFacade {
         return response.getData();
     }
 
+    public void createPayConfigInfo(String title, String url) {
+        R<Void> response = payServiceClient.createPayConfigInfo(title, url);
+        if (response == null || !R.isSuccess(response.getCode())) {
+            throw new IllegalStateException("Failed to create pay config info in pay-service");
+        }
+    }
+
+    public void updatePayConfigInfo(Integer id, String title, String url) {
+        payServiceClient.updatePayConfigInfo(id, title, url);
+    }
+
+    public List<PayConfigInfoDTO> fetchPayConfigInfoOptions() {
+        R<List<PayConfigInfoDTO>> response = payServiceClient.getPayConfigInfoOptions();
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch pay config info options from pay-service");
+            return Collections.emptyList();
+        }
+        return response.getData();
+    }
+
+    public void createPayConfigChannel(PayConfigChannelSaveRequest req) {
+        R<Void> response = payServiceClient.createPayConfigChannel(req);
+        if (response == null || !R.isSuccess(response.getCode())) {
+            throw new IllegalStateException("Failed to create pay config channel in pay-service");
+        }
+    }
+
+    public void updatePayConfigChannel(PayConfigChannelSaveRequest req) {
+        payServiceClient.updatePayConfigChannel(req);
+    }
+
+    public BigDecimal fetchOrderSumByChannel(Long channelId, Date startTime) {
+        R<BigDecimal> response = payServiceClient.getOrderSumByChannel(channelId, startTime.getTime());
+        if (response == null || !R.isSuccess(response.getCode())) {
+            log.warn("Failed to fetch order sum for channelId={}", channelId);
+            return BigDecimal.ZERO;
+        }
+        return response.getData() != null ? response.getData() : BigDecimal.ZERO;
+    }
+
+    public String fetchChannelTitleById(Long channelId) {
+        R<String> response = payServiceClient.getChannelTitleById(channelId);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch channel title for channelId={}", channelId);
+            return "";
+        }
+        return response.getData();
+    }
+
+    public void updateOrderOnlineId(Long channelId, Date startTime, Long billId) {
+        try {
+            payServiceClient.updateOrderOnlineId(channelId, startTime.getTime(), billId);
+        } catch (Exception e) {
+            log.error("Failed to update order online_id for channelId={} billId={}", channelId, billId, e);
+        }
+    }
+
+    public void manualCallback(String orderId) {
+        R<Void> response = payServiceClient.manualCallback(orderId);
+        if (response == null || !R.isSuccess(response.getCode())) {
+            String msg = response != null ? response.getMsg() : "pay-service unavailable";
+            throw new IllegalStateException(msg);
+        }
+    }
+
+    public List<BillOrderDetailDTO> fetchOrderDetailsByBillId(Long billId) {
+        R<List<BillOrderDetailDTO>> response = payServiceClient.getOrderDetailsByBillId(billId);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch order details by billId={} from pay-service", billId);
+            return Collections.emptyList();
+        }
+        return response.getData();
+    }
+
+    public List<BillOrderIdsDTO> fetchOrderIdsByBillIds(List<Long> billIds) {
+        if (billIds == null || billIds.isEmpty()) return Collections.emptyList();
+        R<List<BillOrderIdsDTO>> response = payServiceClient.getOrderIdsByBillIds(billIds);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch order ids by bill ids from pay-service");
+            return Collections.emptyList();
+        }
+        return response.getData();
+    }
+
     public Page<OrderBuildErrorDTO> fetchOrderBuildErrorList(
             String mdcId, String errorText, Integer payConfigId, String appId,
             long pageNum, long pageSize) {
@@ -188,6 +278,24 @@ public class PayServiceFacade {
                 payStartTime, payEndTime, channelId, status, account, pageNum, pageSize);
         if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
             log.warn("Failed to fetch channel stats from pay-service, returning empty page");
+            Page<PayinOrderVO> fallback = new Page<>(pageNum, pageSize, 0);
+            fallback.setRecords(Collections.emptyList());
+            return fallback;
+        }
+        return response.getData();
+    }
+
+    public Page<PayinOrderVO> fetchChannelStatsPayout(
+            Long id, String otherOrderId,
+            String createStartTime, String createEndTime,
+            String payStartTime, String payEndTime,
+            Long channelId, Integer status, String account,
+            long pageNum, long pageSize) {
+        R<Page<PayinOrderVO>> response = payServiceClient.getChannelStatsPayout(
+                id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch payout channel stats from pay-service, returning empty page");
             Page<PayinOrderVO> fallback = new Page<>(pageNum, pageSize, 0);
             fallback.setRecords(Collections.emptyList());
             return fallback;
@@ -318,6 +426,15 @@ public class PayServiceFacade {
         return response.getData();
     }
 
+    public List<OrderCallbackDTO> fetchOrderCallbackList(String orderId) {
+        R<List<OrderCallbackDTO>> response = payServiceClient.getOrderCallbackList(orderId);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch order callback list for orderId={} from pay-service", orderId);
+            return Collections.emptyList();
+        }
+        return response.getData();
+    }
+
     public Page<PayChannelPageRowDTO> fetchPayChannelPage(
             Long id, String title, Integer status, String currency, long pageNum, long pageSize) {
         Integer areaType = null;
@@ -358,6 +475,45 @@ public class PayServiceFacade {
                 payServiceClient.getPayinSummaryPage(startTime, areaType, pageNum, pageSize);
         if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
             log.warn("Failed to fetch payin summary page from pay-service");
+            Page<PayinSummaryRowDTO> fallback = new Page<>(pageNum, pageSize, 0);
+            fallback.setRecords(Collections.emptyList());
+            return fallback;
+        }
+        Page<PayinSummaryRowDTO> page = response.getData();
+        List<PayinSummaryRowDTO> records = page.getRecords();
+        if (records != null && !records.isEmpty()) {
+            Set<Integer> platformIds = records.stream()
+                    .map(PayinSummaryRowDTO::getPlatformId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (!platformIds.isEmpty()) {
+                List<SystemUserAuth> authList = systemUserAuthMapper.selectList(
+                        Wrappers.<SystemUserAuth>lambdaQuery()
+                                .in(SystemUserAuth::getPlatformId, platformIds)
+                                .select(SystemUserAuth::getPlatformId, SystemUserAuth::getAccount));
+                Map<Integer, String> accountMap = authList == null ? Collections.emptyMap()
+                        : authList.stream()
+                                .filter(a -> a.getPlatformId() != null)
+                                .collect(Collectors.toMap(SystemUserAuth::getPlatformId,
+                                        a -> a.getAccount() != null ? a.getAccount() : "",
+                                        (x, y) -> x));
+                records.forEach(r -> {
+                    if (r.getPlatformId() != null) {
+                        r.setMerchant(accountMap.getOrDefault(r.getPlatformId(), ""));
+                    }
+                });
+            }
+        }
+        return page;
+    }
+
+    public Page<PayinSummaryRowDTO> fetchPayoutSummaryPage(
+            String dateType, Integer areaType, long pageNum, long pageSize) {
+        String startTime = resolveStartTime(dateType);
+        R<Page<PayinSummaryRowDTO>> response =
+                payServiceClient.getPayoutSummaryPage(startTime, areaType, pageNum, pageSize);
+        if (response == null || !R.isSuccess(response.getCode()) || response.getData() == null) {
+            log.warn("Failed to fetch payout summary page from pay-service");
             Page<PayinSummaryRowDTO> fallback = new Page<>(pageNum, pageSize, 0);
             fallback.setRecords(Collections.emptyList());
             return fallback;

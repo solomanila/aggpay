@@ -10,6 +10,8 @@ public class PayConfigInfoDTO {
 
     private String shortCode;
 
+    private String title;
+
     private String url;
 
     private String reqDomain;

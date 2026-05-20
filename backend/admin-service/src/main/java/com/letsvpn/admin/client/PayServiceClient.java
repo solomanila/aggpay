@@ -16,6 +16,11 @@ import com.letsvpn.common.core.dto.PayinOrderVO;
 import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import java.math.BigDecimal;
+import com.letsvpn.common.core.dto.BillOrderDetailDTO;
+import com.letsvpn.common.core.dto.BillOrderIdsDTO;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
@@ -86,6 +91,49 @@ public interface PayServiceClient {
             @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
             @RequestParam(value = "pageSize", defaultValue = "20") long pageSize);
 
+    @PostMapping("/dashboard/payConfigInfoCreate")
+    R<Void> createPayConfigInfo(
+            @RequestParam("title") String title,
+            @RequestParam("url") String url);
+
+    @PutMapping("/dashboard/payConfigInfoUpdate")
+    R<Void> updatePayConfigInfo(
+            @RequestParam("id") Integer id,
+            @RequestParam("title") String title,
+            @RequestParam("url") String url);
+
+    @GetMapping("/dashboard/payConfigInfoOptions")
+    R<List<PayConfigInfoDTO>> getPayConfigInfoOptions();
+
+    @PostMapping("/dashboard/payConfigChannelCreate")
+    R<Void> createPayConfigChannel(@RequestBody PayConfigChannelSaveRequest req);
+
+    @PutMapping("/dashboard/payConfigChannelUpdate")
+    R<Void> updatePayConfigChannel(@RequestBody PayConfigChannelSaveRequest req);
+
+    @GetMapping("/dashboard/orderSumByChannel")
+    R<BigDecimal> getOrderSumByChannel(
+            @RequestParam("channelId") Long channelId,
+            @RequestParam("startTimeMillis") Long startTimeMillis);
+
+    @GetMapping("/dashboard/channelTitleById")
+    R<String> getChannelTitleById(@RequestParam("channelId") Long channelId);
+
+    @PutMapping("/dashboard/updateOrderOnlineId")
+    R<Void> updateOrderOnlineId(
+            @RequestParam("channelId") Long channelId,
+            @RequestParam("startTimeMillis") Long startTimeMillis,
+            @RequestParam("billId") Long billId);
+
+    @PostMapping("/dashboard/manualCallback")
+    R<Void> manualCallback(@RequestParam("orderId") String orderId);
+
+    @GetMapping("/dashboard/orderDetailsByBillId")
+    R<List<BillOrderDetailDTO>> getOrderDetailsByBillId(@RequestParam("billId") Long billId);
+
+    @PostMapping("/dashboard/orderIdsByBillIds")
+    R<List<BillOrderIdsDTO>> getOrderIdsByBillIds(@RequestBody List<Long> billIds);
+
     @GetMapping("/dashboard/orderBuildErrorList")
     R<Page<OrderBuildErrorDTO>> getOrderBuildErrorList(
             @RequestParam(value = "mdcId", required = false) String mdcId,
@@ -97,6 +145,20 @@ public interface PayServiceClient {
 
     @GetMapping("/dashboard/channelStat")
     R<Page<PayinOrderVO>> getChannelStats(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
+            @RequestParam(value = "createStartTime", required = false) String createStartTime,
+            @RequestParam(value = "createEndTime", required = false) String createEndTime,
+            @RequestParam(value = "payStartTime", required = false) String payStartTime,
+            @RequestParam(value = "payEndTime", required = false) String payEndTime,
+            @RequestParam(value = "channelId", required = false) Long channelId,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "account", required = false) String account,
+            @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "20") long pageSize);
+
+    @GetMapping("/dashboard/channelStatPayout")
+    R<Page<PayinOrderVO>> getChannelStatsPayout(
             @RequestParam(value = "id", required = false) Long id,
             @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
             @RequestParam(value = "createStartTime", required = false) String createStartTime,
@@ -195,9 +257,19 @@ public interface PayServiceClient {
             @RequestParam(value = "pageNum",   defaultValue = "1")  long pageNum,
             @RequestParam(value = "pageSize",  defaultValue = "20") long pageSize);
 
+    @GetMapping("/dashboard/payoutSummaryPage")
+    R<Page<PayinSummaryRowDTO>> getPayoutSummaryPage(
+            @RequestParam(value = "startTime", required = false) String startTime,
+            @RequestParam(value = "areaType",  required = false) Integer areaType,
+            @RequestParam(value = "pageNum",   defaultValue = "1")  long pageNum,
+            @RequestParam(value = "pageSize",  defaultValue = "20") long pageSize);
+
     @GetMapping("/dashboard/orderById")
     R<OrderInfoDTO> getOrderInfoById(@RequestParam("id") Long id);
 
     @PostMapping("/dashboard/ordersByOrderIds")
     R<List<OrderInfoDTO>> getOrdersByOrderIds(@RequestBody List<String> orderIds);
+
+    @GetMapping("/dashboard/orderCallbackList")
+    R<List<OrderCallbackDTO>> getOrderCallbackList(@RequestParam("orderId") String orderId);
 }

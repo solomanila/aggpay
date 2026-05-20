@@ -8,11 +8,13 @@ import com.letsvpn.common.core.dto.DashboardSummaryResponse;
 import com.letsvpn.common.core.dto.HomeDashboardMetricsResponse;
 import com.letsvpn.common.core.dto.BoardChannelDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
 import com.letsvpn.common.core.dto.PayinOrderVO;
 import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -105,6 +108,23 @@ public class PayAdminController {
         return R.success(payServiceFacade.fetchPayConfigInfoList(shortCode, pageNum, pageSize));
     }
 
+    @PostMapping("/dashboard/payConfigInfoCreate")
+    public R<Void> createPayConfigInfo(
+            @RequestParam String title,
+            @RequestParam String url) {
+        payServiceFacade.createPayConfigInfo(title, url);
+        return R.success(null);
+    }
+
+    @PutMapping("/dashboard/payConfigInfoUpdate")
+    public R<Void> updatePayConfigInfo(
+            @RequestParam Integer id,
+            @RequestParam String title,
+            @RequestParam String url) {
+        payServiceFacade.updatePayConfigInfo(id, title, url);
+        return R.success(null);
+    }
+
     @GetMapping("/dashboard/orderBuildErrorList")
     public R<Page<OrderBuildErrorDTO>> dashboardOrderBuildErrorList(
             @RequestParam(value = "mdcId", required = false) String mdcId,
@@ -135,6 +155,24 @@ public class PayAdminController {
                 payStartTime, payEndTime, channelId, status, account, pageNum, pageSize));
     }
 
+    @GetMapping("/dashboard/channelStatPayout")
+    public R<Page<PayinOrderVO>> dashboardChannelStatPayout(
+            @RequestParam(value = "id", required = false) Long id,
+            @RequestParam(value = "otherOrderId", required = false) String otherOrderId,
+            @RequestParam(value = "createStartTime", required = false) String createStartTime,
+            @RequestParam(value = "createEndTime", required = false) String createEndTime,
+            @RequestParam(value = "payStartTime", required = false) String payStartTime,
+            @RequestParam(value = "payEndTime", required = false) String payEndTime,
+            @RequestParam(value = "channelId", required = false) Long channelId,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "account", required = false) String account,
+            @RequestParam(value = "pageNum", defaultValue = "1") long pageNum,
+            @RequestParam(value = "pageSize", defaultValue = "20") long pageSize) {
+        return R.success(payServiceFacade.fetchChannelStatsPayout(
+                id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize));
+    }
+
     @GetMapping("/dashboard/allChannelOptions")
     public R<List<BoardChannelDTO>> dashboardAllChannelOptions() {
         return R.success(payServiceFacade.fetchAllChannelOptions());
@@ -160,5 +198,51 @@ public class PayAdminController {
             @RequestParam(defaultValue = "20") long pageSize) {
         return R.success(payServiceFacade
                 .fetchPayinSummaryPage(dateType, areaType, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/payoutSummaryPage")
+    public R<Page<PayinSummaryRowDTO>> dashboardPayoutSummaryPage(
+            @RequestParam(required = false) String dateType,
+            @RequestParam(required = false) Integer areaType,
+            @RequestParam(defaultValue = "1")  long pageNum,
+            @RequestParam(defaultValue = "20") long pageSize) {
+        return R.success(payServiceFacade
+                .fetchPayoutSummaryPage(dateType, areaType, pageNum, pageSize));
+    }
+
+    @GetMapping("/dashboard/payConfigInfoOptions")
+    public R<List<PayConfigInfoDTO>> payConfigInfoOptions() {
+        return R.success(payServiceFacade.fetchPayConfigInfoOptions());
+    }
+
+    @PostMapping("/dashboard/payConfigChannelCreate")
+    public R<Void> createPayConfigChannel(@RequestBody PayConfigChannelSaveRequest req) {
+        payServiceFacade.createPayConfigChannel(req);
+        return R.success(null);
+    }
+
+    @PutMapping("/dashboard/payConfigChannelUpdate")
+    public R<Void> updatePayConfigChannel(@RequestBody PayConfigChannelSaveRequest req) {
+        payServiceFacade.updatePayConfigChannel(req);
+        return R.success(null);
+    }
+
+    /**
+     * 手动回调：对指定订单强制执行支付成功流程（无需三方回调）。
+     * 适用于三方已到账但回调丢失的订单补偿场景。
+     */
+    @PostMapping("/order/manualCallback")
+    public R<Void> manualCallback(@RequestParam String orderId) {
+        try {
+            payServiceFacade.manualCallback(orderId);
+            return R.success(null);
+        } catch (Exception e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @GetMapping("/order/callbackList")
+    public R<List<OrderCallbackDTO>> orderCallbackList(@RequestParam String orderId) {
+        return R.success(payServiceFacade.fetchOrderCallbackList(orderId));
     }
 }

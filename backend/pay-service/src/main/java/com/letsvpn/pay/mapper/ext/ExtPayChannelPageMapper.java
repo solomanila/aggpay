@@ -19,7 +19,9 @@ public interface ExtPayChannelPageMapper {
                 a.title AS description,
                 c.title AS configTitle,
                 a.status,
-                a.create_time AS createTime
+                a.create_time AS createTime,
+                a.pay_config_id AS configId,
+                a.share_id AS shareId
             FROM pay_config_channel a
             LEFT JOIN pay_config_info c ON a.pay_config_id = c.id
             <where>

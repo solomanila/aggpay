@@ -64,7 +64,7 @@ const selectCurrency = (areaType) => {
   fetchData();
 };
 
-// ── Table state ───────────────────────────────────────────────────────
+// ── Payin table state ─────────────────────────────────────────────────
 const tableRows     = ref([]);
 const tableTotal    = ref(0);
 const tablePage     = ref(1);
@@ -78,18 +78,28 @@ const totalPages = computed(() =>
 const pageStart = computed(() => tableTotal.value ? (tablePage.value - 1) * tablePageSize.value + 1 : 0);
 const pageEnd   = computed(() => Math.min(tablePage.value * tablePageSize.value, tableTotal.value));
 
+// ── Payout table state ────────────────────────────────────────────────
+const payoutRows     = ref([]);
+const payoutTotal    = ref(0);
+const payoutPage     = ref(1);
+const payoutPageSize = ref(20);
+const payoutLoading  = ref(false);
+const payoutError    = ref('');
+
+const payoutTotalPages = computed(() =>
+  payoutTotal.value ? Math.max(1, Math.ceil(payoutTotal.value / payoutPageSize.value)) : 1
+);
+const payoutPageStart = computed(() => payoutTotal.value ? (payoutPage.value - 1) * payoutPageSize.value + 1 : 0);
+const payoutPageEnd   = computed(() => Math.min(payoutPage.value * payoutPageSize.value, payoutTotal.value));
+
 // ── Fetch ─────────────────────────────────────────────────────────────
-const fetchData = async () => {
-  if (activeTab.value !== 'summary-payin') return;
+const fetchPayinData = async () => {
   tableLoading.value = true;
   tableError.value = '';
   try {
-    const params = {
-      pageNum:  tablePage.value,
-      pageSize: tablePageSize.value,
-    };
-    if (dateType.value)            params.dateType  = dateType.value;
-    if (selectedAreaType.value)    params.areaType  = selectedAreaType.value;
+    const params = { pageNum: tablePage.value, pageSize: tablePageSize.value };
+    if (dateType.value)         params.dateType = dateType.value;
+    if (selectedAreaType.value) params.areaType = selectedAreaType.value;
     const { data: res } = await http.get('/admin/pay/dashboard/payinSummaryPage', { params });
     const payload = res?.data ?? res;
     tableRows.value  = payload?.records ?? [];
@@ -105,10 +115,43 @@ const fetchData = async () => {
   }
 };
 
+const fetchPayoutData = async () => {
+  payoutLoading.value = true;
+  payoutError.value = '';
+  try {
+    const params = { pageNum: payoutPage.value, pageSize: payoutPageSize.value };
+    if (dateType.value)         params.dateType = dateType.value;
+    if (selectedAreaType.value) params.areaType = selectedAreaType.value;
+    const { data: res } = await http.get('/admin/pay/dashboard/payoutSummaryPage', { params });
+    const payload = res?.data ?? res;
+    payoutRows.value  = payload?.records ?? [];
+    payoutTotal.value = payload?.total   ?? 0;
+    payoutPage.value  = Number(payload?.current ?? payoutPage.value);
+  } catch (e) {
+    console.error('Failed to load payout summary', e);
+    payoutError.value = '加载失败';
+    payoutRows.value  = [];
+    payoutTotal.value = 0;
+  } finally {
+    payoutLoading.value = false;
+  }
+};
+
+const fetchData = () => {
+  if (activeTab.value === 'summary-payin')  fetchPayinData();
+  else if (activeTab.value === 'summary-payout') fetchPayoutData();
+};
+
 const changePage = (next) => {
   if (next < 1 || next > totalPages.value || next === tablePage.value) return;
   tablePage.value = next;
-  fetchData();
+  fetchPayinData();
+};
+
+const changePayoutPage = (next) => {
+  if (next < 1 || next > payoutTotalPages.value || next === payoutPage.value) return;
+  payoutPage.value = next;
+  fetchPayoutData();
 };
 
 // ── Formatting ────────────────────────────────────────────────────────
@@ -251,6 +294,83 @@ onMounted(() => {
           <span class="card-title">PayIn Amount-RS</span>
         </div>
         <p class="placeholder-text">即将上线</p>
+      </div>
+
+    </template>
+
+    <!-- ── Summary/PayOut ───────────────────────────────────────────── -->
+    <template v-else-if="activeTab === 'summary-payout'">
+
+      <!-- Filters (shared) -->
+      <div class="filter-row">
+        <div class="filter-field" ref="dateFilterRef">
+          <span class="field-label">Date <span class="req">*</span></span>
+          <button class="date-chip" @click.stop="dateDropdownOpen = !dateDropdownOpen">
+            {{ currentDateLabel }}
+            <svg @click="resetDate" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="reset-icon"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+          <div v-if="dateDropdownOpen" class="date-dropdown" @click.stop>
+            <button v-for="opt in DATE_OPTIONS" :key="opt.value" class="date-opt"
+              :class="{ active: dateType === opt.value }" @click="selectDate(opt.value)">{{ opt.label }}</button>
+          </div>
+        </div>
+        <div class="filter-field" ref="currencyFilterRef">
+          <span class="field-label">currency <span class="req">*</span></span>
+          <button class="date-chip" @click.stop="currencyDropdownOpen = !currencyDropdownOpen">
+            {{ currentCurrencyLabel }}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div v-if="currencyDropdownOpen" class="date-dropdown currency-dropdown" @click.stop>
+            <button v-for="opt in CURRENCY_OPTIONS" :key="opt.areaType" class="date-opt"
+              :class="{ active: selectedAreaType === opt.areaType }" @click="selectCurrency(opt.areaType)">{{ opt.currencyCode }} · {{ opt.label }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table card: PayOut Summary/Merchant-RF -->
+      <div class="table-card">
+        <div class="card-header">
+          <span class="card-title">PayOut Summary/Merchant-RF</span>
+          <div class="card-actions">
+            <span v-if="payoutLoading" class="loading-hint">加载中...</span>
+            <span v-if="payoutError" class="error-hint">{{ payoutError }}</span>
+            <button class="more-btn">···</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>local_time: Day <span class="sort-arrow">↑</span></th>
+                <th>Merchant <span class="sort-arrow">↑</span></th>
+                <th>channel <span class="sort-arrow">↑</span></th>
+                <th class="num-col"><span class="sort-arrow">↑</span> successAmount</th>
+                <th class="num-col"><span class="sort-arrow">↑</span> successRate</th>
+                <th class="num-col"><span class="sort-arrow">↑</span> orderNum</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!payoutRows.length && !payoutLoading">
+                <td colspan="6" class="empty-cell">暂无数据</td>
+              </tr>
+              <tr v-for="(row, i) in payoutRows" :key="i">
+                <td>{{ row.localTimeDay ?? '—' }}</td>
+                <td>{{ row.merchant ?? '—' }}</td>
+                <td>{{ row.channel ?? '—' }}</td>
+                <td class="num-col">{{ fmtNum(row.successAmount) }}</td>
+                <td class="num-col">{{ fmtRate(row.successRate) }}</td>
+                <td class="num-col">{{ fmtNum(row.orderNum) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-bar">
+          <span class="page-info">Rows {{ payoutPageStart }}-{{ payoutPageEnd }} of {{ payoutTotal }}</span>
+          <div class="page-nav">
+            <button class="nav-btn" :disabled="payoutPage <= 1" @click="changePayoutPage(payoutPage - 1)">&#8249;</button>
+            <button class="nav-btn" :disabled="payoutPage >= payoutTotalPages" @click="changePayoutPage(payoutPage + 1)">&#8250;</button>
+          </div>
+        </div>
       </div>
 
     </template>

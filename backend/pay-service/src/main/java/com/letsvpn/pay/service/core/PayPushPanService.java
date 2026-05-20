@@ -93,17 +93,22 @@ public class PayPushPanService extends BaseService {
 		}
 	}
 
-	@Async
+	/**
+	 * 支付成功后处理：商户余额入账。
+	 *
+	 * <p>幂等设计（分布式重复投递安全）：
+	 * <ol>
+	 *   <li>先检查 noticeStatus == 100，已处理则直接返回。</li>
+	 *   <li>余额入账成功后，将 noticeStatus 更新为 100。</li>
+	 *   <li>入账失败则抛出异常，由 RocketMQ 重试机制处理。</li>
+	 * </ol>
+	 *
+	 * <p>注意：不再使用 @Async。由 MQ 消费者线程池并发，ACK 在本方法返回后发出，
+	 * 保证"处理成功才 ACK"的 at-least-once 语义。
+	 */
 	public void pushSuccessOrderInfo(Long id) {
 		String reqid = UUID.randomUUID().toString().replaceAll("-", "");
 		MDC.put(PayConstant.MDC_KEY_REQ_ID, reqid);
-//		try {
-//			_pushSuccessOrderInfo(id, reqid);
-//
-//
-//		} catch (Exception e) {
-//			log.error("id:{},{}", id, e.getMessage(), e);
-//		}
 
         OrderInfo info = orderInfoService.getOrderInfo(id);
         if (info == null) {
@@ -111,16 +116,32 @@ public class PayPushPanService extends BaseService {
             return;
         }
 
-        if (Integer.valueOf(1).equals(info.getStatus())) {
-            try {
-                R<Void> resp = adminBalanceClient.creditOrderIncome(
-                        info.getPlatformId(), info.getRealAmount());
-                log.info("merchant balance credited: orderId={}, platformId={}, amount={}",
-                        info.getOrderId(), info.getPlatformId(), info.getRealAmount());
-            } catch (Exception e) {
-                log.error("merchant balance credit failed: orderId={}", info.getOrderId(), e);
-            }
+        // 幂等：已处理过的订单直接跳过，防止重复入账
+        if (Integer.valueOf(100).equals(info.getNoticeStatus())) {
+            log.info("pushSuccessOrderInfo: already processed (noticeStatus=100), skip orderId={}",
+                    info.getOrderId());
+            return;
         }
+
+        if (Integer.valueOf(1).equals(info.getStatus())) {
+            // 余额入账失败时抛出异常，触发 RocketMQ 重试，不在此处吞掉错误
+            R<Void> resp = adminBalanceClient.creditOrderIncome(
+                    info.getPlatformId(), info.getRealAmount());
+            if (resp == null || !R.isSuccess(resp.getCode())) {
+                throw new RuntimeException(
+                        "Balance credit failed for orderId=" + info.getOrderId()
+                        + ", resp=" + (resp != null ? resp.getCode() : "null"));
+            }
+            log.info("merchant balance credited: orderId={}, platformId={}, amount={}",
+                    info.getOrderId(), info.getPlatformId(), info.getRealAmount());
+        }
+
+        // 标记已处理：后续重复投递命中幂等检查，不会二次入账
+        OrderInfo record = new OrderInfo();
+        record.setId(id);
+        record.setNoticeStatus(100);
+        record.setNoticeTime(new Date());
+        orderInfoService.updateByPrimaryKey(record);
 	}
 
 	void _pushSuccessOrderInfo(Long id, String reqid) {

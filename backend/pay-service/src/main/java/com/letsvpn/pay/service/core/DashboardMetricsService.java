@@ -17,6 +17,7 @@ import com.letsvpn.common.core.dto.MerchantProfileDTO;
 import com.letsvpn.common.core.dto.OrderBuildErrorDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.dto.OrderCreatedAtDTO;
@@ -34,9 +35,11 @@ import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.entity.PayConfigChannel;
 import com.letsvpn.pay.entity.PayConfigInfo;
 import com.letsvpn.pay.entity.PayPlatformInfo;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
 import com.letsvpn.pay.mapper.DashboardSummaryMapper;
 import com.letsvpn.pay.mapper.MerchantInfoMapper;
 import com.letsvpn.pay.mapper.OrderBuildErrorMapper;
+import com.letsvpn.pay.mapper.OrderCallbackMapper;
 import com.letsvpn.pay.mapper.OrderInfoMapper;
 import com.letsvpn.pay.mapper.PayConfigChannelMapper;
 import com.letsvpn.pay.mapper.PayConfigInfoMapper;
@@ -77,8 +80,10 @@ public class DashboardMetricsService {
     private final OrderBuildErrorMapper orderBuildErrorMapper;
     private final PayPlatformInfoMapper payPlatformInfoMapper;
     private final PayConfigChannelMapper payConfigChannelMapper;
+    private final OrderCallbackMapper orderCallbackMapper;
     private final com.letsvpn.pay.mapper.ext.ExtChannelProfitStatMapper extChannelProfitStatMapper;
     private final com.letsvpn.pay.mapper.ext.ExtPayinSummaryMapper extPayinSummaryMapper;
+    private final com.letsvpn.pay.mapper.ext.ExtPayoutSummaryMapper extPayoutSummaryMapper;
     private final com.letsvpn.pay.mapper.ext.ExtPayChannelPageMapper extPayChannelPageMapper;
     private final AdminUserAuthClient adminUserAuthClient;
     private final AdminBalanceLogInternalClient adminBalanceLogClient;
@@ -147,6 +152,26 @@ public class DashboardMetricsService {
             String payStartTime, String payEndTime,
             Long channelId, Integer status, String account,
             long pageNum, long pageSize) {
+        return getChannelStatsInternal(id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize, 1);
+    }
+
+    public Page<PayinOrderVO> getChannelStatsPayout(
+            Long id, String otherOrderId,
+            String createStartTime, String createEndTime,
+            String payStartTime, String payEndTime,
+            Long channelId, Integer status, String account,
+            long pageNum, long pageSize) {
+        return getChannelStatsInternal(id, otherOrderId, createStartTime, createEndTime,
+                payStartTime, payEndTime, channelId, status, account, pageNum, pageSize, 2);
+    }
+
+    private Page<PayinOrderVO> getChannelStatsInternal(
+            Long id, String otherOrderId,
+            String createStartTime, String createEndTime,
+            String payStartTime, String payEndTime,
+            Long channelId, Integer status, String account,
+            long pageNum, long pageSize, int shareId) {
         long pageIndex = Math.max(pageNum, 1L);
         long size = Math.max(1L, Math.min(pageSize, 200L));
 
@@ -186,6 +211,7 @@ public class DashboardMetricsService {
         if (platformIdFilter != null) {
             wrapper.eq(OrderInfo::getPlatformId, platformIdFilter);
         }
+        wrapper.apply("pay_config_channel_id IN (SELECT id FROM pay_config_channel WHERE share_id = {0})", shareId);
 
         Page<OrderInfo> pageResult = orderInfoMapper.selectPage(new Page<>(pageIndex, size), wrapper);
         List<OrderInfo> records = pageResult.getRecords();
@@ -371,8 +397,9 @@ public class DashboardMetricsService {
         long size = Math.max(1L, Math.min(pageSize, 200L));
 
         LambdaQueryWrapper<PayConfigInfo> wrapper = Wrappers.<PayConfigInfo>lambdaQuery()
-                .select(PayConfigInfo::getId, PayConfigInfo::getShortCode, PayConfigInfo::getUrl,
-                        PayConfigInfo::getReqDomain, PayConfigInfo::getRemark, PayConfigInfo::getCreateTime)
+                .select(PayConfigInfo::getId, PayConfigInfo::getShortCode, PayConfigInfo::getTitle,
+                        PayConfigInfo::getUrl, PayConfigInfo::getReqDomain, PayConfigInfo::getRemark,
+                        PayConfigInfo::getCreateTime)
                 .orderByDesc(PayConfigInfo::getCreateTime);
 
         if (shortCode != null && !shortCode.isBlank()) {
@@ -486,6 +513,128 @@ public class DashboardMetricsService {
         PayConfigInfoDTO dto = new PayConfigInfoDTO();
         BeanUtils.copyProperties(info, dto);
         return dto;
+    }
+
+    public void createPayConfigInfo(String title, String url) {
+        PayConfigInfo info = new PayConfigInfo();
+        info.setTitle(title);
+        info.setUrl(url);
+        info.setThirdService("zyaPayService");
+        info.setCallMethod("redirect");
+        info.setReqParam("");
+        info.setNullify(0);
+        info.setAreaType(1);
+        info.setTest(0);
+        info.setCreateTime(new Date());
+        info.setHttpType("form_data");
+        info.setWeUrl("");
+        info.setReqDomain("");
+        payConfigInfoMapper.insert(info);
+    }
+
+    public void updatePayConfigInfo(Integer id, String title, String url) {
+        payConfigInfoMapper.update(null, new LambdaUpdateWrapper<PayConfigInfo>()
+                .eq(PayConfigInfo::getId, id)
+                .set(PayConfigInfo::getTitle, title)
+                .set(PayConfigInfo::getUrl, url));
+    }
+
+    public java.math.BigDecimal getOrderSumByChannel(Long channelId, Date startTime) {
+        java.math.BigDecimal result = orderInfoMapper.sumRealAmountByChannelSince(channelId, startTime);
+        return result != null ? result : java.math.BigDecimal.ZERO;
+    }
+
+    public String getChannelTitleById(Long channelId) {
+        PayConfigChannel ch = payConfigChannelMapper.selectById(channelId);
+        return ch != null && ch.getTitle() != null ? ch.getTitle() : "";
+    }
+
+    public void updateOrderOnlineId(Long channelId, Date startTime, Long billId) {
+        orderInfoMapper.updateOnlineIdByChannel(channelId, startTime, billId);
+    }
+
+    public List<com.letsvpn.common.core.dto.BillOrderDetailDTO> getOrderDetailsByBillId(Long billId) {
+        if (billId == null) return Collections.emptyList();
+        List<OrderInfo> list = orderInfoMapper.selectList(
+                Wrappers.<OrderInfo>lambdaQuery()
+                        .select(OrderInfo::getOrderId, OrderInfo::getOtherOrderId,
+                                OrderInfo::getRealAmount, OrderInfo::getStatus,
+                                OrderInfo::getCreateTime, OrderInfo::getPayTime)
+                        .eq(OrderInfo::getOnLineId, billId));
+        if (list == null) return Collections.emptyList();
+        return list.stream().map(o -> {
+            com.letsvpn.common.core.dto.BillOrderDetailDTO dto = new com.letsvpn.common.core.dto.BillOrderDetailDTO();
+            dto.setOrderId(o.getOrderId());
+            dto.setOtherOrderId(o.getOtherOrderId());
+            dto.setRealAmount(o.getRealAmount());
+            dto.setStatus(o.getStatus());
+            dto.setCreateTime(o.getCreateTime());
+            dto.setPayTime(o.getPayTime());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    public List<com.letsvpn.common.core.dto.BillOrderIdsDTO> getOrderIdsByBillIds(List<Long> billIds) {
+        if (billIds == null || billIds.isEmpty()) return Collections.emptyList();
+        List<OrderInfo> list = orderInfoMapper.selectList(
+                Wrappers.<OrderInfo>lambdaQuery()
+                        .select(OrderInfo::getOnLineId, OrderInfo::getOrderId)
+                        .in(OrderInfo::getOnLineId, billIds)
+                        .isNotNull(OrderInfo::getOnLineId));
+        if (list == null || list.isEmpty()) return Collections.emptyList();
+        Map<Long, String> grouped = list.stream()
+                .filter(o -> o.getOnLineId() != null && o.getOrderId() != null)
+                .collect(Collectors.groupingBy(
+                        OrderInfo::getOnLineId,
+                        Collectors.mapping(OrderInfo::getOrderId, Collectors.joining(","))));
+        return grouped.entrySet().stream().map(e -> {
+            com.letsvpn.common.core.dto.BillOrderIdsDTO dto = new com.letsvpn.common.core.dto.BillOrderIdsDTO();
+            dto.setBillId(e.getKey());
+            dto.setOrderIds(e.getValue());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    public List<PayConfigInfoDTO> getPayConfigInfoOptions() {
+        List<PayConfigInfo> list = payConfigInfoMapper.selectList(
+                Wrappers.<PayConfigInfo>lambdaQuery()
+                        .select(PayConfigInfo::getId, PayConfigInfo::getTitle)
+                        .orderByDesc(PayConfigInfo::getCreateTime));
+        if (list == null) return Collections.emptyList();
+        return list.stream().map(i -> {
+            PayConfigInfoDTO dto = new PayConfigInfoDTO();
+            dto.setId(i.getId());
+            dto.setTitle(i.getTitle());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    public void createPayConfigChannel(PayConfigChannelSaveRequest req) {
+        PayConfigChannel channel = new PayConfigChannel();
+        channel.setPayConfigId(req.getPayConfigId() == null ? null : req.getPayConfigId().intValue());
+        channel.setTitle(req.getTitle());
+        channel.setJsonParam(req.getJsonParam());
+        channel.setCreateTime(new Date());
+        channel.setShareId(req.getShareId());
+        channel.setExtractType("json");
+        channel.setExtractField("payString");
+        channel.setExtractPrefix(null);
+        channel.setStatus(req.getStatus());
+        payConfigChannelMapper.insert(channel);
+    }
+
+    public void updatePayConfigChannel(PayConfigChannelSaveRequest req) {
+        payConfigChannelMapper.update(null, new LambdaUpdateWrapper<PayConfigChannel>()
+                .eq(PayConfigChannel::getId, req.getId())
+                .set(PayConfigChannel::getPayConfigId, req.getPayConfigId() == null ? null : req.getPayConfigId().intValue())
+                .set(PayConfigChannel::getTitle, req.getTitle())
+                .set(PayConfigChannel::getJsonParam, req.getJsonParam())
+                .set(PayConfigChannel::getCreateTime, new Date())
+                .set(PayConfigChannel::getShareId, req.getShareId())
+                .set(PayConfigChannel::getExtractType, "json")
+                .set(PayConfigChannel::getExtractField, "payString")
+                .set(PayConfigChannel::getExtractPrefix, null)
+                .set(PayConfigChannel::getStatus, req.getStatus()));
     }
 
     // ── Merchant profile methods (for admin-service Feign) ─────────────
@@ -721,6 +870,34 @@ public class DashboardMetricsService {
         return dtoPage;
     }
 
+    public Page<PayinSummaryRowDTO> getPayoutSummaryPage(
+            String startTime, Integer areaType, long pageNum, long pageSize) {
+        long size = Math.max(1L, Math.min(pageSize, 200L));
+        long index = Math.max(pageNum, 1L);
+
+        List<Integer> platformIds = null;
+        if (areaType != null) {
+            List<PayPlatformInfo> platforms = payPlatformInfoMapper.selectList(
+                    Wrappers.<PayPlatformInfo>lambdaQuery()
+                            .eq(PayPlatformInfo::getAreaType, areaType)
+                            .select(PayPlatformInfo::getPlatformId));
+            if (platforms == null || platforms.isEmpty()) {
+                Page<PayinSummaryRowDTO> empty = new Page<>(index, size, 0);
+                empty.setRecords(Collections.emptyList());
+                return empty;
+            }
+            platformIds = platforms.stream()
+                    .map(PayPlatformInfo::getPlatformId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+
+        com.baomidou.mybatisplus.core.metadata.IPage<PayinSummaryRowDTO> page =
+                new Page<>(index, size);
+        return (Page<PayinSummaryRowDTO>) extPayoutSummaryMapper
+                .selectPayoutSummaryPage(page, startTime, platformIds);
+    }
+
     public Page<PayinSummaryRowDTO> getPayinSummaryPage(
             String startTime, Integer areaType, long pageNum, long pageSize) {
         long size = Math.max(1L, Math.min(pageSize, 200L));
@@ -815,5 +992,11 @@ public class DashboardMetricsService {
         Page<OrderInfoDTO> dtoPage = new Page<>(pageResult.getCurrent(), pageResult.getSize(), pageResult.getTotal());
         dtoPage.setRecords(records);
         return dtoPage;
+    }
+
+    public List<OrderCallbackDTO> getOrderCallbackList(String orderId) {
+        String paramLike = "%" + orderId + "%";
+        List<OrderCallbackDTO> result = orderCallbackMapper.selectByOrderId(orderId, paramLike);
+        return result != null ? result : Collections.emptyList();
     }
 }

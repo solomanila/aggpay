@@ -9,6 +9,8 @@ import com.letsvpn.admin.mapper.MerchantBalanceLogMapper;
 import com.letsvpn.admin.mapper.MerchantBalanceMapper;
 import com.letsvpn.admin.mapper.MerchantChannelConfigMapper;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import java.util.Collections;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,12 @@ public class MerchantBalanceService {
     public List<MerchantBalance> listByPlatformId(Integer platformId) {
         return balanceMapper.selectList(new LambdaQueryWrapper<MerchantBalance>()
                 .eq(MerchantBalance::getPlatformId, platformId));
+    }
+
+    public List<MerchantBalance> listByPlatformIds(List<Integer> platformIds) {
+        if (platformIds == null || platformIds.isEmpty()) return Collections.emptyList();
+        return balanceMapper.selectList(new LambdaQueryWrapper<MerchantBalance>()
+                .in(MerchantBalance::getPlatformId, platformIds));
     }
 
     public MerchantBalance getOrCreate(Integer platformId, String currency) {
@@ -143,11 +151,11 @@ public class MerchantBalanceService {
                 .setScale(2, RoundingMode.HALF_DOWN);
 
         MerchantBalance b = getOrCreate(orderInfo.getPlatformId(), currencyCode);
-        BigDecimal prev = b.getAvailable();
-        b.setAvailable(prev.add(income));
+        BigDecimal prev = b.getFrozen();
+        b.setFrozen(prev.add(income));
         balanceMapper.updateById(b);
-        writeLog(b.getPlatformId(), b.getCurrency(), "SETTLEMENT", income,
-                prev, b.getAvailable(), b.getFrozen(), b.getFrozen(),
+        writeLog(b.getPlatformId(), b.getCurrency(), "FROZE", income,
+                prev, prev, b.getFrozen(), b.getFrozen().add(income),
                 "订单收款", null,
                 orderInfo.getOrderId(), orderInfo.getOtherOrderId());
     }

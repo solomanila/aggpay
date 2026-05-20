@@ -63,7 +63,7 @@ wanli:
     check: 0
 
 telegram-bot:
-  token: 8360749651:AAEoN0ieATm7xqNvyRuqmqxMegG2SgYbdXA
+  token: 8980428410:AAF3rXpjwQCCqXG3g4PEgfAnLkhFitFPL9M
 
 rocketmq:
   name-server: 127.0.0.1:9876

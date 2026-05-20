@@ -19,6 +19,11 @@ import com.letsvpn.common.core.dto.PayinOrderVO;
 import com.letsvpn.common.core.dto.PayChannelPageRowDTO;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
 import com.letsvpn.common.core.dto.PayConfigChannelDTO;
+import java.math.BigDecimal;
+import com.letsvpn.common.core.dto.BillOrderDetailDTO;
+import com.letsvpn.common.core.dto.BillOrderIdsDTO;
+import com.letsvpn.common.core.dto.OrderCallbackDTO;
+import com.letsvpn.common.core.dto.PayConfigChannelSaveRequest;
 import com.letsvpn.common.core.dto.PayConfigChannelUpdateRequest;
 import com.letsvpn.common.core.dto.PayConfigInfoDTO;
 import com.letsvpn.common.core.response.R;
@@ -109,6 +114,61 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             }
 
             @Override
+            public R<Void> createPayConfigInfo(String title, String url) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<Void> updatePayConfigInfo(Integer id, String title, String url) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<List<PayConfigInfoDTO>> getPayConfigInfoOptions() {
+                return R.success(Collections.emptyList());
+            }
+
+            @Override
+            public R<Void> createPayConfigChannel(PayConfigChannelSaveRequest req) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<Void> updatePayConfigChannel(PayConfigChannelSaveRequest req) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<BigDecimal> getOrderSumByChannel(Long channelId, Long startTimeMillis) {
+                return R.success(BigDecimal.ZERO);
+            }
+
+            @Override
+            public R<String> getChannelTitleById(Long channelId) {
+                return R.success("");
+            }
+
+            @Override
+            public R<Void> updateOrderOnlineId(Long channelId, Long startTimeMillis, Long billId) {
+                return R.success(null);
+            }
+
+            @Override
+            public R<Void> manualCallback(String orderId) {
+                return R.fail("pay-service unavailable");
+            }
+
+            @Override
+            public R<List<BillOrderDetailDTO>> getOrderDetailsByBillId(Long billId) {
+                return R.success(Collections.emptyList());
+            }
+
+            @Override
+            public R<List<BillOrderIdsDTO>> getOrderIdsByBillIds(List<Long> billIds) {
+                return R.success(Collections.emptyList());
+            }
+
+            @Override
             public R<Page<OrderBuildErrorDTO>> getOrderBuildErrorList(
                     String mdcId, String errorText, Integer payConfigId, String appId,
                     long pageNum, long pageSize) {
@@ -119,6 +179,18 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
 
             @Override
             public R<Page<PayinOrderVO>> getChannelStats(
+                    Long id, String otherOrderId,
+                    String createStartTime, String createEndTime,
+                    String payStartTime, String payEndTime,
+                    Long channelId, Integer status, String account,
+                    long pageNum, long pageSize) {
+                Page<PayinOrderVO> page = new Page<>(pageNum, pageSize, 0);
+                page.setRecords(Collections.emptyList());
+                return R.success(page);
+            }
+
+            @Override
+            public R<Page<PayinOrderVO>> getChannelStatsPayout(
                     Long id, String otherOrderId,
                     String createStartTime, String createEndTime,
                     String payStartTime, String payEndTime,
@@ -229,12 +301,25 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             }
 
             @Override
+            public R<Page<PayinSummaryRowDTO>> getPayoutSummaryPage(
+                    String startTime, Integer areaType, long pageNum, long pageSize) {
+                Page<PayinSummaryRowDTO> page = new Page<>(pageNum, pageSize, 0);
+                page.setRecords(Collections.emptyList());
+                return R.success(page);
+            }
+
+            @Override
             public R<OrderInfoDTO> getOrderInfoById(Long id) {
                 return R.success(null);
             }
 
             @Override
             public R<List<OrderInfoDTO>> getOrdersByOrderIds(List<String> orderIds) {
+                return R.success(Collections.emptyList());
+            }
+
+            @Override
+            public R<List<OrderCallbackDTO>> getOrderCallbackList(String orderId) {
                 return R.success(Collections.emptyList());
             }
         };
