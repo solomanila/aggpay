@@ -1,0 +1,30 @@
+FROM maven:3.9-eclipse-temurin-17 AS builder
+
+WORKDIR /build
+
+COPY pom.xml ./
+COPY common-core/pom.xml ./common-core/
+COPY common-data/pom.xml ./common-data/
+COPY auth-service/pom.xml ./auth-service/
+COPY gateway/pom.xml ./gateway/
+COPY user-service/pom.xml ./user-service/
+COPY pay-service/pom.xml ./pay-service/
+COPY admin-service/pom.xml ./admin-service/
+
+RUN mvn dependency:go-offline -B
+
+COPY common-core/src ./common-core/src/
+COPY common-data/src ./common-data/src/
+COPY admin-service/src ./admin-service/src/
+
+RUN mvn package -pl admin-service -am -DskipTests
+
+FROM eclipse-temurin:17-jre-focal
+
+WORKDIR /app
+
+COPY --from=builder /build/admin-service/target/admin-service-1.0-SNAPSHOT.jar ./app.jar
+
+EXPOSE 8085
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
