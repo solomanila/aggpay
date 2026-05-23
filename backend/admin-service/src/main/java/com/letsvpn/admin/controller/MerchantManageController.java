@@ -2,6 +2,7 @@ package com.letsvpn.admin.controller;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.letsvpn.admin.client.PayReqClient;
 import com.letsvpn.admin.client.PayServiceClient;
 import com.letsvpn.admin.dto.MerchantCreateResponse;
 import com.letsvpn.admin.dto.MerchantListItemDTO;
@@ -32,6 +33,7 @@ public class MerchantManageController {
     private final MerchantManageService service;
     private final SystemUserAuthMapper systemUserAuthMapper;
     private final PayServiceClient payServiceClient;
+    private final PayReqClient payReqClient;
 
     private static final Pattern REPLACE_URL = Pattern.compile("window\\.location\\.replace\\('(.+?)'\\)");
     private static final Pattern SDK_DATA    = Pattern.compile("\"data\"\\s*:\\s*\"(.+?)\"");
@@ -107,7 +109,7 @@ public class MerchantManageController {
         String fid = "FT" + timestamp;
 
         try {
-            String body = payServiceClient.payTestReq(
+            String body = payReqClient.payReq(
                     fid, userAuth.getId(), amount.toPlainString(),
                     platformNo, "test", timestamp, payConfigChannelId);
 

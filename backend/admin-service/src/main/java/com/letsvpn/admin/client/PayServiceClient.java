@@ -273,13 +273,4 @@ public interface PayServiceClient {
     @GetMapping("/dashboard/orderCallbackList")
     R<List<OrderCallbackDTO>> getOrderCallbackList(@RequestParam("orderId") String orderId);
 
-    @GetMapping("/req")
-    String payTestReq(
-            @RequestParam("fid") String fid,
-            @RequestParam("uid") Long uid,
-            @RequestParam("amount") String amount,
-            @RequestParam("pf") String pf,
-            @RequestParam("sign") String sign,
-            @RequestParam("time") Long time,
-            @RequestParam("cid") Long cid);
 }
