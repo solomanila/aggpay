@@ -216,20 +216,29 @@ const payTestVisible = ref(false);
 const payTestConfig  = ref(null);
 const payTestAmount  = ref(100);
 const payTestSaving  = ref(false);
+const payTestResultVisible = ref(false);
+const payTestResultUrl     = ref('');
+const payTestResultError   = ref('');
 
 const openPayTest = (config) => {
   payTestConfig.value = config; payTestAmount.value = 100; payTestVisible.value = true;
 };
 const submitPayTest = async () => {
   payTestSaving.value = true;
+  payTestResultError.value = '';
   try {
-    await http.post('/admin/merchant/pay-test', {
+    const { data: resp } = await http.post('/admin/merchant/pay-test', {
       platformId: payTestConfig.value.platformId,
       payConfigChannelId: payTestConfig.value.payConfigChannelId,
       amount: Number(payTestAmount.value),
     });
+    const url = resp?.data ?? resp;
     payTestVisible.value = false;
-  } catch (e) { console.error(e); } finally { payTestSaving.value = false; }
+    payTestResultUrl.value = typeof url === 'string' ? url : JSON.stringify(url);
+    payTestResultVisible.value = true;
+  } catch (e) {
+    payTestResultError.value = e?.response?.data?.msg || e?.message || '请求失败';
+  } finally { payTestSaving.value = false; }
 };
 
 // ── Merchant edit panel ───────────────────────────────────────────
@@ -359,7 +368,7 @@ onMounted(() => { loadBoard(); loadChannelOptions(); });
                         @click="toggleConfigEnabled(getConfig(merchant.platformId,col.id))">
                         {{ getConfig(merchant.platformId,col.id).enabled===1 ? '✓' : '⏸' }}
                       </button>
-                      <button class="cfg-ico ico-link" @click="openPayTest(getConfig(merchant.platformId,col.id))">🔗</button>
+                      <button class="cfg-ico ico-link" title="收款测试" @click="openPayTest(getConfig(merchant.platformId,col.id))">🔗</button>
                       <button class="cfg-ico ico-edit" @click="openEdit(getConfig(merchant.platformId,col.id))">✎</button>
                       <button class="cfg-ico ico-del" @click="deleteConfig(getConfig(merchant.platformId,col.id))">🗑</button>
                     </div>
@@ -534,11 +543,28 @@ onMounted(() => { loadBoard(); loadChannelOptions(); });
             <label class="fl req">金额</label>
             <input v-model="payTestAmount" class="fi" type="number" min="1" />
           </div>
+          <p v-if="payTestResultError" class="err">{{ payTestResultError }}</p>
         </div>
         <div class="ct-ft">
           <button class="btn-primary" :disabled="payTestSaving" @click="submitPayTest">
             {{ payTestSaving ? '提交中…' : '提交' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         收款测试结果 modal
+    ══════════════════════════════════════════════════════ -->
+    <div v-if="payTestResultVisible" class="ct-overlay" @click.self="payTestResultVisible=false">
+      <div class="ct-modal ct-result">
+        <div class="ct-result-icon">✅</div>
+        <div class="ct-result-title">成功</div>
+        <div class="ct-result-url">
+          <a :href="payTestResultUrl" target="_blank" rel="noopener">{{ payTestResultUrl }}</a>
+        </div>
+        <div class="ct-ft">
+          <button class="btn-primary" @click="payTestResultVisible=false">确定</button>
         </div>
       </div>
     </div>
@@ -714,6 +740,12 @@ onMounted(() => { loadBoard(); loadChannelOptions(); });
 .ct-hd { align-items: center; border-bottom: 1px solid rgba(255,255,255,0.07); color: #e8eaf6; display: flex; font-size: 15px; font-weight: 600; justify-content: space-between; padding: 14px 20px; }
 .ct-body { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; }
 .ct-ft { display: flex; justify-content: flex-end; padding: 12px 20px 16px; }
+.ct-result { max-width: 520px; min-width: 420px; padding: 28px 24px 20px; text-align: center; }
+.ct-result-icon { font-size: 36px; line-height: 1; margin-bottom: 10px; }
+.ct-result-title { color: #e8eaf6; font-size: 18px; font-weight: 600; margin-bottom: 18px; }
+.ct-result-url { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; margin-bottom: 16px; overflow-wrap: break-word; padding: 10px 14px; text-align: left; word-break: break-all; }
+.ct-result-url a { color: #4a9eff; font-size: 13px; text-decoration: none; }
+.ct-result-url a:hover { text-decoration: underline; }
 
 /* ══ Form elements ═════════════════════════════════════════════════ */
 .fp { display: flex; flex-direction: column; gap: 5px; }

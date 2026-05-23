@@ -322,6 +322,11 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             public R<List<OrderCallbackDTO>> getOrderCallbackList(String orderId) {
                 return R.success(Collections.emptyList());
             }
+
+            @Override
+            public String payTestReq(String fid, Long uid, String amount, String pf, String sign, Long time, Long cid) {
+                return null;
+            }
         };
     }
 }

@@ -44,11 +44,7 @@ const handlePowerClick = () => {
 <template>
   <header class="header">
     <div class="brand">
-      <div class="brand-icon">PA</div>
-      <div>
-        <p class="brand-title">演示 test1111</p>
-        <p class="brand-caption">多通道资金 · 实时监控</p>
-      </div>
+      <img src="/logo1.png" alt="Zyapay" class="brand-logo" />
     </div>
     <div class="header-actions">
       <div class="pill-group">
@@ -98,24 +94,15 @@ const handlePowerClick = () => {
 .brand {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
-.brand-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #7f85f9, #b291ff);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.brand-title {
-  font-size: 18px;
-  font-weight: 600;
+.brand-logo {
+  height: 44px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  mix-blend-mode: screen;
 }
 
 .brand-caption {
