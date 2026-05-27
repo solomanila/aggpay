@@ -563,6 +563,35 @@ ssh -i ~/aggpay_key.pem ec2-user@10.0.1.38 \
 | `sed: can't read /etc/sysconfig/jenkins` | 新版 RPM 不再生成该文件 | 改用 systemd override 设置端口 |
 | Pipeline 报 `git ls-remote` 失败 | gateway 未安装 git | `sudo dnf install -y git` |
 
+### Jenkins 用户权限初始化（必做）
+
+首次搭建完成后，在 gateway 上执行以下初始化命令，否则 Pipeline 会因权限不足失败：
+
+```bash
+# 1. 给 jenkins 用户免密 sudo（否则 docker 命令全部失败）
+echo "jenkins ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/jenkins
+sudo chmod 0440 /etc/sudoers.d/jenkins
+
+# 2. 复制 AWS 凭证给 jenkins 用户（否则 ECR 登录失败）
+sudo mkdir -p /var/lib/jenkins/.aws
+sudo cp ~/.aws/credentials /var/lib/jenkins/.aws/credentials
+sudo cp ~/.aws/config /var/lib/jenkins/.aws/config 2>/dev/null || true
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.aws
+sudo chmod 600 /var/lib/jenkins/.aws/credentials
+
+# 3. 复制 SSH 密钥给 jenkins 用户（否则传镜像到私网机器失败）
+sudo cp /home/ec2-user/aggpay_key.pem /var/lib/jenkins/aggpay_key.pem
+sudo chown jenkins:jenkins /var/lib/jenkins/aggpay_key.pem
+sudo chmod 600 /var/lib/jenkins/aggpay_key.pem
+
+# 4. 验证三项权限均正常
+sudo -u jenkins aws sts get-caller-identity
+sudo -u jenkins ssh -i /var/lib/jenkins/aggpay_key.pem -o StrictHostKeyChecking=no ec2-user@10.0.1.38 "echo SSH OK"
+sudo -u jenkins sudo docker ps
+```
+
+> **Jenkinsfile 中 KEY_PATH 必须填 `/var/lib/jenkins/aggpay_key.pem`**，不能用 `/home/ec2-user/aggpay_key.pem`（jenkins 用户无权访问其他用户的 home 目录）。
+
 ### GitHub 私有仓库
 
 - Jenkins 凭据类型选 **Username with password**，Password 填 GitHub PAT（`repo` 权限），不要用 SSH Key 方式（需额外配置 known_hosts）
