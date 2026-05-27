@@ -171,6 +171,9 @@ public class PayReqCreateService extends BaseService {
 		String notifyAmountChange = host + "/api/pay/notifyLetspayMex/" + platformId + "/" + payConfigId;
 
 		param.put("callbackUrl", callbackUrl);// 请求地址
+
+
+
 		param.put("notifyUrl", notifyUrl); // 回调地址 get/post form
 		param.put("notifyUrl2", notifyUrl2); // 回调地址2 json对象
 		param.put("notifyUrl3", notifyUrl3); // 回调地址3 json/textplain
