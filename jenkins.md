@@ -189,19 +189,32 @@ bash deploy-frontend.sh
 
 ### 2.1 在 gateway 安装 Jenkins
 
+> ⚠️ **实测坑点**：
+> - 新版 Jenkins（2.357+）**最低要求 Java 21**，Java 17 会报错退出，必须安装 `java-21-amazon-corretto`
+> - 新版 Jenkins RPM **不再生成 `/etc/sysconfig/jenkins`**，需改用 systemd override 配置端口
+> - gateway 上默认没有安装 `git`，需手动安装，否则 Pipeline 拉取代码会失败
+
 ```bash
-# 安装 Java 17（Jenkins 需要）
-sudo dnf install -y java-17-amazon-corretto
+# 安装 Java 21（新版 Jenkins 要求，Java 17 不支持）
+sudo dnf install -y java-21-amazon-corretto
+
+# 安装 git（Jenkins Pipeline 拉取代码必须）
+sudo dnf install -y git
 
 # 添加 Jenkins 仓库并安装
 sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
 sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 sudo dnf install -y jenkins
 
-# 修改端口为 8888（避免与 Spring Cloud Gateway 的 8080 冲突）
-sudo sed -i 's/^JENKINS_PORT=.*/JENKINS_PORT=8888/' /etc/sysconfig/jenkins
+# 修改端口为 8888（新版无 /etc/sysconfig/jenkins，用 systemd override）
+sudo mkdir -p /etc/systemd/system/jenkins.service.d
+sudo tee /etc/systemd/system/jenkins.service.d/override.conf << 'EOF'
+[Service]
+Environment="JENKINS_PORT=8888"
+EOF
 
 # 启动并设置开机自启
+sudo systemctl daemon-reload
 sudo systemctl start jenkins
 sudo systemctl enable jenkins
 
@@ -211,7 +224,7 @@ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 
 访问 `http://13.234.6.115:8888` 完成初始化向导。
 
-> **安全组**：临时在 gateway Security Group 开放 `8888/TCP`，限制运维 IP，上线后可关闭（使用 SSH 隧道访问）。
+> **安全组**：在 gateway 实例（非 VPC ACL）的 Security Group 开放 `8888/TCP`，多个运维 IP 各加一条规则，来源填 `x.x.x.x/32`（精确匹配单 IP），上线后可关闭（使用 SSH 隧道访问）。
 
 ### 2.2 安装必要插件
 
@@ -225,29 +238,44 @@ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 | SSH Agent | SSH 连接私网机器 |
 | Blue Ocean | 可视化 UI（推荐） |
 | Build Timeout | 防止构建卡死 |
+| NodeJS | 前端构建（npm） |
+
+安装完勾选 **Restart Jenkins when installation is complete**，等待自动重启后重新登录。
 
 ### 2.3 配置凭据
 
-进入 `Manage Jenkins → Credentials → System → Global`，添加：
+进入 `Manage Jenkins → Credentials → System → Global credentials (unrestricted) → Add Credentials`，添加：
 
 | ID | 类型 | 内容 |
 |----|------|------|
 | `aws-ecr-key` | AWS Credentials | ECR 登录（推荐用 IAM Role，gateway 已有则无需添加） |
-| `deploy-ssh-key` | SSH Username with private key | ec2-user + aggpay_key.pem 内容 |
+| `deploy-ssh-key` | SSH Username with private key | Username 填 `ec2-user`，选 Enter directly，粘贴 aggpay_key.pem 完整内容 |
+| `github-token` | Username with password | Username 填 GitHub 用户名，Password 填 GitHub PAT（见下方说明） |
+
+#### GitHub 私有仓库授权（Personal Access Token）
+
+1. GitHub → `Settings` → `Developer settings` → `Personal access tokens` → `Tokens (classic)` → `Generate new token (classic)`
+2. 勾选 **`repo`** 权限（包含私有仓库读写）
+3. 生成后立即复制（只显示一次），填入 Jenkins 凭据的 Password 字段
 
 ### 2.4 配置 Maven 和 Node.js 工具
 
 进入 `Manage Jenkins → Tools`：
 
-- **Maven**：名称 `maven3`，选择自动安装，版本 `3.9.x`
-- **NodeJS**：名称 `node18`，选择自动安装，版本 `18.x`（需先装 NodeJS 插件）
-- **JDK**：名称 `jdk17`，指向 `/usr/lib/jvm/java-17-amazon-corretto`
+- **JDK**：名称 `jdk21`，**取消勾选自动安装**，JAVA_HOME 填 `/usr/lib/jvm/java-21-amazon-corretto.x86_64`
+- **Maven**：名称 `maven3`，勾选自动安装，版本选最新 `3.9.x`
+- **NodeJS**：名称 `node18`，勾选自动安装，版本选 `18.20.x`
 
 ### 2.5 创建 Pipeline Job
 
 1. 新建 Item → 选 **Pipeline**，命名 `payadmin-deploy`
-2. **Build Triggers** 勾选 `GitHub hook trigger for GITScm polling`（或轮询 `H/5 * * * *`）
-3. **Pipeline** → `Pipeline script from SCM` → Git 填写仓库地址，脚本路径填 `Jenkinsfile`
+2. **General** 勾选 `This project is parameterized` → Add Parameter → **Choice Parameter**，Name 填 `DEPLOY_TARGET`，Choices 每行一个：`all` / `backend-only` / `frontend-only` / `pay-service` / `admin-service` / `auth-service` / `gateway`
+3. **Build Triggers** 勾选 `GitHub hook trigger for GITScm polling`
+4. **Pipeline** → Definition 选 `Pipeline script from SCM` → SCM 选 `Git`
+   - Repository URL：`https://github.com/solomanila/aggpay.git`
+   - Credentials：选 `github-token`
+   - Branch：`*/main`
+   - Script Path：`Jenkinsfile`
 
 ### 2.6 Jenkinsfile
 
@@ -513,3 +541,29 @@ ssh -i ~/aggpay_key.pem ec2-user@10.0.1.38 \
 | 新增成本 | 0 | 占用 gateway 约 1 GB RAM |
 
 **建议**：先用 Phase 1 脚本验证流程可用性，同周内完成 Jenkins 搭建实现全自动化。
+
+---
+
+## 实操踩坑记录
+
+### Windows 本地 SCP/SSH 命令
+
+- PowerShell **不支持 `\` 续行**，多行命令必须写成单行或用反引号 `` ` `` 续行
+- Windows OpenSSH 对 `.pem` 文件权限严格，若提示 `UNPROTECTED PRIVATE KEY FILE` 执行：
+  ```powershell
+  icacls D:\notes\aggpay_key.pem /inheritance:r /grant:r "$($env:USERNAME):(R)"
+  ```
+- 推荐使用 **FinalShell** 的 SFTP 面板上传文件，避开 Windows SSH 权限问题
+
+### Jenkins 安装（Amazon Linux 2023）
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| Jenkins 启动失败，报 `Java 17 older than minimum` | 新版 Jenkins 要求 Java 21 | 安装 `java-21-amazon-corretto` |
+| `sed: can't read /etc/sysconfig/jenkins` | 新版 RPM 不再生成该文件 | 改用 systemd override 设置端口 |
+| Pipeline 报 `git ls-remote` 失败 | gateway 未安装 git | `sudo dnf install -y git` |
+
+### GitHub 私有仓库
+
+- Jenkins 凭据类型选 **Username with password**，Password 填 GitHub PAT（`repo` 权限），不要用 SSH Key 方式（需额外配置 known_hosts）
+- PAT 生成路径：GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
