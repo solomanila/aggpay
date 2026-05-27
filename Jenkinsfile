@@ -4,7 +4,7 @@ pipeline {
     environment {
         ECR_REGISTRY = '289400855294.dkr.ecr.ap-south-1.amazonaws.com'
         REGION       = 'ap-south-1'
-        KEY_PATH     = '/home/ec2-user/aggpay_key.pem'
+        KEY_PATH     = '/var/lib/jenkins/aggpay_key.pem'
     }
 
     parameters {
