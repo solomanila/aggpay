@@ -71,3 +71,13 @@ rocketmq:
     group: pay-service-producer-group
     send-message-timeout: 3000
     retry-times-when-send-failed: 2
+
+shopline:
+  app-key: a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb
+  app-secret: e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f
+  public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2zkSKtgm8UJwLs7T80DF2i3hmeysbIUJQHAvKF/mbBJWibwa1rrdDvS6gHzNwC5M0ndLsLkq8n75PeFHHZy3ahhLPLs19y07RMRArvvUO0aLPR1GW5Ef21BpYJ2nWcjKPitsv37qS3CpqzgV198ZGTApTPZ36dmhO6eNGewa1CnXquLkkw3T18OoFYnE1QQ2dEqflkzfUFUKn3id8L+G7j0511kdHULUFerA+CD8SYYXnrB9cQaRBT7dJB2Y0rYXh7v0Uw+0NnuDjs5Zt95iaJTfFCT4Et74/b9h1MgA+kauHkYGo3mgvOAkCHf0NF7/C1nMbM22Ru5bQBG7g7ZjlwIDAQAB
+  platform-no: "17799296834702744"
+  api-base: https://openapi.myshopline.com
+  api-version: 2023-01
+  redirect-uri: https://192.131.142.181/shopline/oauth/callback
+  scopes: write_discounts,write_store_information,read_store_information,write_payment_gateways,read_script_tags,write_shop_policy,write_price_rules,write_fulfillment_service,read_bulkoperation,write_inventory,read_orders,write_content,read_marketing_event,read_inventory,write_orders,read_discounts,read_products,read_content,read_returns,read_fulfillment_service,write_products,read_location,read_shipping,read_translation,read_selling_plan_group,read_themes,write_subscription_contracts,write_bulkoperation,write_translation,read_customers,read_payment,write_checkouts,read_shop_policy,write_customers,read_markets,read_product_listings,write_files,read_store_metrics,read_gift_card,write_script_tags,write_product_listings,write_return,write_page,read_subscription_contracts,write_selling_plan_group,read_assigned_fulfillment_orders,write_shipping,read_page,write_themes,read_price_rules,write_gift_card,write_markets,write_assigned_fulfillment_orders,read_files,read_draft_orders,write_marketing_event,write_draft_orders

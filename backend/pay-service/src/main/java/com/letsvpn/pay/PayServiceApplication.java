@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableDiscoveryClient
 @EnableScheduling
 @EnableFeignClients(basePackages = {"com.letsvpn.pay.client"})
-@MapperScan({"com.letsvpn.common.data.mapper","com.letsvpn.pay.mapper"}) // ✅ 扫描 common-data 模块里的 mapper 接口
+@MapperScan({"com.letsvpn.common.data.mapper","com.letsvpn.pay.mapper","com.letsvpn.pay.shopline.mapper"})
 public class PayServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(PayServiceApplication.class, args);

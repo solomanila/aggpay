@@ -48,7 +48,11 @@ public class SecurityConfig {
             "/api/pay/notify**",
             "/api/pay/notify*/**",
             //app版本
-            "/api/user/app/version"
+            "/api/user/app/version",
+            //shopline
+            "/api/pay/shopline/oauth/install",
+            "/api/pay/shopline/oauth/callback",
+            "/api/pay/shopline/admin"
     };
 
     // 放行通过网关访问的、聚合的各微服务的 API Docs 路径
