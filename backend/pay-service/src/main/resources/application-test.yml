@@ -81,4 +81,5 @@ shopline:
   api-base: https://openapi.myshopline.com
   api-version: 2023-01
   redirect-uri: https://192.131.142.181/shopline/oauth/callback
+  login-base-url: https://192.131.142.181
   scopes: write_payment_gateways,read_payment_gateways

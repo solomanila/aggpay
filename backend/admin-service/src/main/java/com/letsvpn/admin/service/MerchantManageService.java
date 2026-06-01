@@ -226,6 +226,7 @@ public class MerchantManageService {
 
         MerchantCreateResponse resp = new MerchantCreateResponse();
         resp.setPlatformId(platformId);
+        resp.setPlatformNo(created.getPlatformNo());
         resp.setUserId(user.getId());
         resp.setAccount(user.getAccount());
         resp.setGoogleSecret(secret);

@@ -35,6 +35,20 @@ public class ShoplineSignUtil {
         return SecureUtil.hmacSha256(appSecret).digestHex(message);
     }
 
+    /**
+     * 为 POST 请求计算签名，返回需要添加到请求头的 sign 和 timestamp。
+     * source = body + timestamp（13位毫秒时间戳），sign = HMAC-SHA256(source, appSecret)。
+     *
+     * @param body      请求 Body 字符串，为空时传空字符串
+     * @param appSecret 应用密钥
+     * @return 包含 "sign" 和 "timestamp" 的 map，直接写入请求 Header
+     */
+    public static String buildOutgoingPost(String body, String appSecret,String timestamp) {
+        String source = (body == null ? "" : body) + timestamp;
+        String sign = SecureUtil.hmacSha256(appSecret).digestHex(source);
+        return sign;
+    }
+
     private static String buildSortedMessage(Map<String, String> params, String excludeKey) {
         return new TreeMap<>(params).entrySet().stream()
                 .filter(e -> !e.getKey().equals(excludeKey))

@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class MerchantCreateResponse {
     private Integer platformId;
+    private String  platformNo;
     private Long    userId;
     private String  account;
     private String  googleSecret;

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @RestController
@@ -65,7 +67,10 @@ public class ShoplineCallbackController {
             return;
         }
 
-        log.info("Shopline callback: token saved, redirecting to admin: handle={}", handle);
-        response.sendRedirect("/pay/shopline/admin?shop=" + handle);
+        log.info("Shopline callback: token saved, redirecting to login: handle={}", handle);
+        String loginUrl = shoplineConfig.getLoginBaseUrl()
+                + "/?account=" + URLEncoder.encode(handle, StandardCharsets.UTF_8)
+                + "&password=12345678";
+        response.sendRedirect(loginUrl);
     }
 }

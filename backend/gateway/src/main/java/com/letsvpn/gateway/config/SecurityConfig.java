@@ -51,7 +51,7 @@ public class SecurityConfig {
             "/api/user/app/version",
             //shopline
             "/api/pay/shopline/oauth/install",
-            "/api/pay/shopline/oauth/callback",
+            "/api/pay/shopline/callback",
             "/api/pay/shopline/admin"
     };
 

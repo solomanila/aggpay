@@ -2,6 +2,7 @@ package com.letsvpn.pay.shopline.controller;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
+import cn.hutool.json.JSONUtil;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
 import com.letsvpn.pay.shopline.service.ShoplineOAuthService;
@@ -16,6 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.StringUtils;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/pay/shopline/oauth")
@@ -91,5 +98,51 @@ public class ShoplineOAuthController {
 
         // 已安装且有效，无需任何操作
         log.info("Shopline install: already installed and valid, handle={}", handle);
+    }
+
+    public static void main(String[] args) {
+        System.out.println(System.currentTimeMillis());
+
+        Map<String, String> map = new TreeMap<>();
+//        map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
+//        map.put("handle", "open001");
+//        map.put("lang", "zh-hans-cn");
+//        map.put("timestamp", "1780311147065");
+
+
+        map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
+        map.put("code", "123456");
+        map.put("handle", "open001");
+        map.put("timestamp", "1780311147065");
+
+
+        String a = "";
+        for (Map.Entry<String, String> stringStringEntry : map.entrySet()) {
+            a =a + stringStringEntry.getKey()+"="+stringStringEntry.getValue()+"&";
+        }
+
+        System.out.println(a.substring(0,a.length()-1));
+
+        String b = a.substring(0,a.length()-1);
+
+        System.out.println(hmacSha256(b,"e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f"));
+
+
+    }
+
+
+    public static String hmacSha256(String source, String secret) {
+        if (StringUtils.isNotEmpty(secret) && StringUtils.isNotEmpty(source)) {
+            try {
+                Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
+                SecretKeySpec secret_key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+                sha256_HMAC.init(secret_key);
+                byte[] bytes = sha256_HMAC.doFinal(source.getBytes(StandardCharsets.UTF_8));
+                return new String(Hex.encodeHex(bytes));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
     }
 }

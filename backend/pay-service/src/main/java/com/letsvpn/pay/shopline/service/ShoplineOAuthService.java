@@ -6,6 +6,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.letsvpn.pay.service.AdminServiceFacade;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
 import com.letsvpn.pay.shopline.mapper.ShoplineShopTokenMapper;
@@ -29,6 +30,7 @@ public class ShoplineOAuthService {
 
     private final ShoplineConfig shoplineConfig;
     private final ShoplineShopTokenMapper shoplineShopTokenMapper;
+    private final AdminServiceFacade adminServiceFacade;
 
     private static final DateTimeFormatter EXPIRE_FORMATTER = new DateTimeFormatterBuilder()
             .appendOptional(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
@@ -72,12 +74,16 @@ public class ShoplineOAuthService {
         Map<String, String> signParams = new TreeMap<>();
         signParams.put("appkey", shoplineConfig.getAppKey());
         signParams.put("code", code);
-        signParams.put("handle", handle);
+        //signParams.put("handle", handle);
         signParams.put("timestamp", timestamp);
-        String sign = ShoplineSignUtil.buildOutgoing(signParams, shoplineConfig.getAppSecret());
+        //String sign = ShoplineSignUtil.buildOutgoing(signParams, shoplineConfig.getAppSecret());
 
         String url = "https://" + handle + ".myshopline.com/admin/oauth/token/create";
         String reqBody = JSONUtil.createObj().set("code", code).toString();
+
+        String sign = ShoplineSignUtil.buildOutgoingPost(reqBody, shoplineConfig.getAppSecret(),timestamp);
+
+
 
         log.info("Shopline token/create: handle={}", handle);
         String responseText;
@@ -171,9 +177,11 @@ public class ShoplineOAuthService {
         qw.eq("shop_handle", shopHandle);
         ShoplineShopToken existing = shoplineShopTokenMapper.selectOne(qw);
 
+        String platformNo = adminServiceFacade.createMerchantForShopline(shopHandle);
+
         if (existing == null) {
             ShoplineShopToken token = new ShoplineShopToken()
-                    .setShopId(shopId)
+                    .setShopId(platformNo)
                     .setShopHandle(shopHandle)
                     .setAccessToken(accessToken)
                     .setRefreshToken(refreshToken)

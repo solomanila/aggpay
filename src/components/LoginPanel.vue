@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { toDataURL } from 'qrcode';
 import http from '../services/http';
 
@@ -13,6 +13,12 @@ const bindLoading = ref(false);
 const error = ref('');
 const otpUrl = ref('');
 const otpQr = ref('');
+
+onMounted(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('account')) account.value = params.get('account');
+  if (params.get('password')) password.value = params.get('password');
+});
 
 const normalizeResponse = (response) => response?.data?.data ?? response?.data ?? response;
 

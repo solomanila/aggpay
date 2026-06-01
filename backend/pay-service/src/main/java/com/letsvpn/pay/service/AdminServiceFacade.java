@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.letsvpn.common.core.dto.MerchantChannelConfigDTO;
 import com.letsvpn.common.core.response.R;
+import com.letsvpn.pay.client.AdminMerchantClient;
 import com.letsvpn.pay.client.AdminServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +16,9 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class AdminServiceFacade {
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
 
     private final AdminServiceClient adminServiceClient;
+    private final AdminMerchantClient adminMerchantClient;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -63,5 +67,39 @@ public class AdminServiceFacade {
             log.warn("Failed to disable merchant channel config id={}", id, e);
         }
         stringRedisTemplate.delete(CACHE_PREFIX + platformId + ":" + channelType);
+    }
+
+    /**
+     * 为 Shopline 店铺在 admin-service 创建对应商户，返回新商户的 platformNo。
+     */
+    public String createMerchantForShopline(String handle) {
+        Map<String, Object> req = new HashMap<>();
+        req.put("platformId", null);
+        req.put("title", handle);
+        req.put("status", 1);
+        req.put("agentId", null);
+        req.put("email", "");
+        req.put("remark", "");
+        req.put("dailyPayOrderLimit", 5);
+        req.put("dailyWithdrawCountLimit", 5);
+        req.put("dailyWithdrawAmountLimit", 50000);
+        req.put("dailyPayLimit", null);
+        req.put("dailyPayoutLimit", null);
+        req.put("largePayoutRiskEnabled", 0);
+        req.put("largePayoutRiskAmount", 500000);
+        req.put("telegramGroupId", "");
+        req.put("settlementNotify", 0);
+        req.put("account", handle);
+        req.put("password", "12345678");
+
+        R<Map<String, Object>> resp = adminMerchantClient.createMerchant(req);
+        if (resp == null || !R.isSuccess(resp.getCode()) || resp.getData() == null) {
+            throw new RuntimeException("创建 Shopline 商户失败: handle=" + handle);
+        }
+        Object platformNo = resp.getData().get("platformNo");
+        if (platformNo == null) {
+            throw new RuntimeException("创建 Shopline 商户响应缺少 platformNo: handle=" + handle);
+        }
+        return platformNo.toString();
     }
 }
