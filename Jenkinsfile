@@ -66,8 +66,12 @@ pipeline {
                               backend/
                             sudo docker push ${ECR_REGISTRY}/payadmin/${svc}:latest
                             sudo docker push ${ECR_REGISTRY}/payadmin/${svc}:build-${BUILD_NUMBER}
+                            sudo docker rmi ${ECR_REGISTRY}/payadmin/${svc}:latest \
+                                           ${ECR_REGISTRY}/payadmin/${svc}:build-${BUILD_NUMBER} || true
                         """
                     }
+                    // 清理构建产生的悬空镜像层
+                    sh "sudo docker image prune -f"
                 }
             }
         }
@@ -163,18 +167,27 @@ pipeline {
 
 def deployBackend(String service, String targetIp) {
     def image = "${env.ECR_REGISTRY}/payadmin/${service}:latest"
+
+    // 加载前先清理目标机悬空镜像，腾出空间
+    sh """
+        ssh -i ${env.KEY_PATH} -o StrictHostKeyChecking=no ec2-user@${targetIp} \
+          "sudo docker image prune -f"
+    """
+
     sh """
         sudo docker save ${image} \
           | gzip \
           | ssh -i ${env.KEY_PATH} -o StrictHostKeyChecking=no ec2-user@${targetIp} \
               "gunzip | sudo docker load"
     """
+
     def runCmd = getRunCommand(service, image)
     sh """
         ssh -i ${env.KEY_PATH} -o StrictHostKeyChecking=no ec2-user@${targetIp} \
           "sudo docker stop ${service} 2>/dev/null || true; \
            sudo docker rm ${service} 2>/dev/null || true; \
-           ${runCmd}"
+           ${runCmd}; \
+           sudo docker image prune -f"
     """
 }
 
