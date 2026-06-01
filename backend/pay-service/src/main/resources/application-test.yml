@@ -77,7 +77,7 @@ shopline:
   app-key: a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb
   app-secret: e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f
   public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2zkSKtgm8UJwLs7T80DF2i3hmeysbIUJQHAvKF/mbBJWibwa1rrdDvS6gHzNwC5M0ndLsLkq8n75PeFHHZy3ahhLPLs19y07RMRArvvUO0aLPR1GW5Ef21BpYJ2nWcjKPitsv37qS3CpqzgV198ZGTApTPZ36dmhO6eNGewa1CnXquLkkw3T18OoFYnE1QQ2dEqflkzfUFUKn3id8L+G7j0511kdHULUFerA+CD8SYYXnrB9cQaRBT7dJB2Y0rYXh7v0Uw+0NnuDjs5Zt95iaJTfFCT4Et74/b9h1MgA+kauHkYGo3mgvOAkCHf0NF7/C1nMbM22Ru5bQBG7g7ZjlwIDAQAB
-  platform-no: "17799296834702744"
+#  platform-no: "17799296834702744"
   api-base: https://openapi.myshopline.com
   api-version: 2023-01
   redirect-uri: https://192.131.142.181/shopline/oauth/callback

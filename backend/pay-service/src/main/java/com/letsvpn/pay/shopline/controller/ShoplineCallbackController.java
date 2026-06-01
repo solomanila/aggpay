@@ -60,17 +60,20 @@ public class ShoplineCallbackController {
             return;
         }
 
-        ShoplineShopToken token = shoplineOAuthService.createTokenFromCode(handle, code);
-        if (token == null) {
-            log.error("Shopline callback: failed to create token: handle={}", handle);
-            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to obtain access token");
-            return;
-        }
+//        ShoplineShopToken token = shoplineOAuthService.createTokenFromCode(handle, code);
+//        if (token == null) {
+//            log.error("Shopline callback: failed to create token: handle={}", handle);
+//            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to obtain access token");
+//            return;
+//        }
 
-        log.info("Shopline callback: token saved, redirecting to login: handle={}", handle);
-        String loginUrl = shoplineConfig.getLoginBaseUrl()
-                + "/?account=" + URLEncoder.encode(handle, StandardCharsets.UTF_8)
-                + "&password=12345678";
-        response.sendRedirect(loginUrl);
+        log.info("Shopline callback: token saved, redirecting to install page: handle={}", handle);
+        String installUrl = shoplineConfig.getLoginBaseUrl()
+                + "/api/pay/shopline/install.html"
+                + "?handle="     + URLEncoder.encode(handle, StandardCharsets.UTF_8)
+                + "&account="    + URLEncoder.encode(handle, StandardCharsets.UTF_8)
+                + "&password=12345678"
+                + "&yourAPPKey=" + URLEncoder.encode(shoplineConfig.getAppKey(), StandardCharsets.UTF_8);
+        response.sendRedirect(installUrl);
     }
 }

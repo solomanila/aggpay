@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Shopline 绑定</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      color: #fff;
+      min-height: 100vh;
+    }
+
+    .login-shell {
+      position: relative;
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #0b1224, #1a2941 60%, #0f1c36);
+    }
+
+    .login-shell::before {
+      content: '';
+      position: absolute;
+      inset: -30% -10%;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(82, 123, 255, 0.35), transparent 55%),
+        radial-gradient(circle at 80% 10%, rgba(102, 214, 255, 0.2),  transparent 45%),
+        radial-gradient(circle at 50% 80%, rgba(74,  98,  255, 0.25), transparent 60%);
+      filter: blur(120px);
+      opacity: 0.8;
+    }
+
+    .login-card {
+      width: min(420px, 100%);
+      padding: 32px;
+      border-radius: 32px;
+      background: linear-gradient(160deg, #0d1227, #090d1d);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 60px rgba(5, 10, 30, 0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .mode-chip {
+      align-self: flex-start;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+    }
+
+    .login-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 14px;
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .field input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .field input::placeholder { color: rgba(255, 255, 255, 0.35); }
+    .field-icon { font-size: 16px; }
+
+    .login-btn {
+      width: 100%;
+      border: none;
+      border-radius: 16px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #3b70ff, #3576ff);
+      cursor: pointer;
+    }
+
+    .login-btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="mode-chip">dark</div>
+      <div class="login-fields">
+        <label class="field">
+          <span class="field-icon">👤</span>
+          <input id="account" type="text" placeholder="账号" autocomplete="username" />
+        </label>
+        <label class="field">
+          <span class="field-icon">🔒</span>
+          <input id="password" type="password" placeholder="密码" autocomplete="current-password" />
+        </label>
+      </div>
+      <button class="login-btn" id="bindBtn" type="button">绑定</button>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const handle     = params.get('handle')     || '';
+    const account    = params.get('account')    || '';
+    const password   = params.get('password')   || '';
+    const yourAPPKey = params.get('yourAPPKey') || '';
+
+    document.getElementById('account').value  = account;
+    document.getElementById('password').value = password;
+
+    document.getElementById('bindBtn').addEventListener('click', function () {
+      window.location.href =
+        'https://' + handle + '.myshopline.com/admin/settings/payments/appInstall?appKey=' + encodeURIComponent(yourAPPKey);
+    });
+  </script>
+</body>
+</html>
