@@ -67,6 +67,7 @@ public class ShoplineCallbackController {
             return;
         }
 
+
         log.info("Shopline callback: token saved, redirecting to install page: handle={}", handle);
         String installUrl = shoplineConfig.getLoginBaseUrl()
                 + "/api/pay/shopline/install.html"
