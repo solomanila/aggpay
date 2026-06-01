@@ -66,11 +66,11 @@ pipeline {
                               backend/
                             sudo docker push ${ECR_REGISTRY}/payadmin/${svc}:latest
                             sudo docker push ${ECR_REGISTRY}/payadmin/${svc}:build-${BUILD_NUMBER}
-                            sudo docker rmi ${ECR_REGISTRY}/payadmin/${svc}:latest \
-                                           ${ECR_REGISTRY}/payadmin/${svc}:build-${BUILD_NUMBER} || true
                         """
+                        // 每个服务 push 后立即删 build-N tag（只保留 latest 供 deployBackend 使用）
+                        sh "sudo docker rmi ${ECR_REGISTRY}/payadmin/${svc}:build-${BUILD_NUMBER} || true"
                     }
-                    // 清理构建产生的悬空镜像层
+                    // 清理多阶段构建产生的悬空中间层
                     sh "sudo docker image prune -f"
                 }
             }
@@ -156,6 +156,18 @@ pipeline {
     }
 
     post {
+        always {
+            // 所有部署完成后统一清理 Jenkins 本地镜像，无论成功失败
+            sh """
+                sudo docker rmi \
+                  ${ECR_REGISTRY}/payadmin/auth-service:latest \
+                  ${ECR_REGISTRY}/payadmin/pay-service:latest \
+                  ${ECR_REGISTRY}/payadmin/admin-service:latest \
+                  ${ECR_REGISTRY}/payadmin/gateway:latest \
+                  2>/dev/null || true
+                sudo docker image prune -f
+            """
+        }
         success {
             echo "✅ 部署成功 - Build #${BUILD_NUMBER}"
         }
