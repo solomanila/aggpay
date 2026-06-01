@@ -60,12 +60,12 @@ public class ShoplineCallbackController {
             return;
         }
 
-//        ShoplineShopToken token = shoplineOAuthService.createTokenFromCode(handle, code);
-//        if (token == null) {
-//            log.error("Shopline callback: failed to create token: handle={}", handle);
-//            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to obtain access token");
-//            return;
-//        }
+        ShoplineShopToken token = shoplineOAuthService.createTokenFromCode(handle, code);
+        if (token == null) {
+            log.error("Shopline callback: failed to create token: handle={}", handle);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to obtain access token");
+            return;
+        }
 
         log.info("Shopline callback: token saved, redirecting to install page: handle={}", handle);
         String installUrl = shoplineConfig.getLoginBaseUrl()
