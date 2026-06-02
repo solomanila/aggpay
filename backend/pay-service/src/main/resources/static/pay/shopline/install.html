@@ -127,11 +127,22 @@
     const account    = params.get('account')    || '';
     const password   = params.get('password')   || '';
     const yourAPPKey = params.get('yourAPPKey') || '';
+    const token      = params.get('token')      || '';
 
     document.getElementById('account').value  = account;
     document.getElementById('password').value = password;
 
     document.getElementById('bindBtn').addEventListener('click', function () {
+      // 异步通知 Shopline 绑定成功（不阻塞跳转）
+      fetch('https://' + handle + '.myshopline.com/admin/openapi/v20260901/app/notify/bind.json', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ handle: handle, app_key: yourAPPKey })
+      }).catch(function () {});
+
       window.location.href =
         'https://' + handle + '.myshopline.com/admin/settings/payments/appInstall?appKey=' + encodeURIComponent(yourAPPKey);
     });

@@ -67,4 +67,27 @@ public class ShoplineSignUtil {
             return false;
         }
     }
+
+    /**
+     * 验证 Shopline Webhook 推送中 X-Shopline-Hmac-Sha256 请求头的签名。
+     * 算法：HMAC-SHA256(rawBody, appSecret)，结果 Base64 编码后与 header 值比对。
+     */
+    public static boolean verifyWebhookHmac(String rawBody, String signature, String appSecret) {
+        if (rawBody == null || signature == null || appSecret == null) return false;
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                    appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] computed = mac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8));
+            String encoded = java.util.Base64.getEncoder().encodeToString(computed);
+            boolean valid = encoded.equals(signature);
+            if (!valid) {
+                log.warn("Shopline webhook HMAC mismatch: computed={}, received={}", encoded, signature);
+            }
+            return valid;
+        } catch (Exception e) {
+            log.error("Shopline webhook HMAC verify error: {}", e.getMessage());
+            return false;
+        }
+    }
 }

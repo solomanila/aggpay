@@ -225,6 +225,17 @@ public class ShoplineOAuthService {
     }
 
     /**
+     * 按 handle 删除店铺 token，返回删除行数。
+     */
+    public int deleteByHandle(String handle) {
+        QueryWrapper<ShoplineShopToken> qw = new QueryWrapper<>();
+        qw.eq("shop_handle", handle);
+        int rows = shoplineShopTokenMapper.delete(qw);
+        log.info("Shopline token deleted: shopHandle={}, rows={}", handle, rows);
+        return rows;
+    }
+
+    /**
      * 从店铺域名中提取 shopId（取 . 之前的部分）。
      */
     public String extractShopId(String shop) {

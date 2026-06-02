@@ -53,7 +53,8 @@ public class SecurityConfig {
             "/api/pay/shopline/oauth/install",
             "/api/pay/shopline/callback",
             "/api/pay/shopline/admin",
-            "/api/pay/shopline/install.html"
+            "/api/pay/shopline/install.html",
+            "/api/pay/shopline/webhook"
     };
 
     // 放行通过网关访问的、聚合的各微服务的 API Docs 路径

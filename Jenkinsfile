@@ -123,6 +123,7 @@ pipeline {
                       -e REDIS_HOST=10.0.1.130 -e REDIS_PASSWORD=Payadmin@2024 \
                       -e TZ=Asia/Kolkata \
                       ${ECR_REGISTRY}/payadmin/gateway:latest
+                    sudo docker image prune -f
                 """
             }
         }
