@@ -43,6 +43,8 @@ public class SecurityConfig {
             "/api/user/node/list",
             // 添加支付接口到白名单（可不传 Authorization 访问）
             "/api/pay/req",
+            //支付查询
+            "/api/pay/order/query",
             //支付回调
             "/api/pay/channel/list",
             "/api/pay/notify**",

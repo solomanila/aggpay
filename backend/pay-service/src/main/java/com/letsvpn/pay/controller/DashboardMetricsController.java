@@ -276,6 +276,11 @@ public class DashboardMetricsController {
         return R.success(dashboardMetricsService.getOrderInfoById(id));
     }
 
+    @GetMapping("/dashboard/orderByOrderId")
+    public R<OrderInfoDTO> getOrderByOrderId(@RequestParam("orderId") String orderId) {
+        return R.success(dashboardMetricsService.getOrderByOrderId(orderId));
+    }
+
     @PostMapping("/dashboard/ordersByOrderIds")
     public R<List<OrderInfoDTO>> getOrdersByOrderIds(@RequestBody List<String> orderIds) {
         return R.success(dashboardMetricsService.getOrdersByOrderIds(orderIds));

@@ -672,6 +672,13 @@ public class DashboardMetricsService {
         return info == null ? null : convertToDto(info);
     }
 
+    public OrderInfoDTO getOrderByOrderId(String orderId) {
+        if (orderId == null || orderId.isBlank()) return null;
+        OrderInfo info = orderInfoMapper.selectOne(
+                new LambdaQueryWrapper<OrderInfo>().eq(OrderInfo::getOrderId, orderId));
+        return info == null ? null : convertToDto(info);
+    }
+
     public List<OrderInfoDTO> getOrdersByOrderIds(List<String> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) return Collections.emptyList();
         List<OrderInfo> list = orderInfoMapper.selectList(

@@ -314,6 +314,11 @@ public class PayServiceClientFallbackFactory implements FallbackFactory<PayServi
             }
 
             @Override
+            public R<OrderInfoDTO> getOrderByOrderId(String orderId) {
+                return R.success(null);
+            }
+
+            @Override
             public R<List<OrderInfoDTO>> getOrdersByOrderIds(List<String> orderIds) {
                 return R.success(Collections.emptyList());
             }

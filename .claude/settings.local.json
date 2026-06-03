@@ -64,7 +64,9 @@
       "PowerShell(Get-ChildItem -Path \"D:\\\\ideaprojects\\\\payadmin-ui\\\\backend\\\\common-data\\\\src\\\\main\" -Directory -Recurse | Where-Object {$_.Name -match \"\\(entity|mapper|dto\\)\"} | Select-Object -First 10)",
       "Bash(del *)",
       "Bash(Select-Object Name, PSIsContainer)",
-      "Bash(grep -E \"^-.*\\\\.\\(yml|yaml|groovy\\)$|^d.*\\\\\\\\.github\")"
+      "Bash(grep -E \"^-.*\\\\.\\(yml|yaml|groovy\\)$|^d.*\\\\\\\\.github\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)"
     ]
   }
 }

@@ -267,6 +267,9 @@ public interface PayServiceClient {
     @GetMapping("/dashboard/orderById")
     R<OrderInfoDTO> getOrderInfoById(@RequestParam("id") Long id);
 
+    @GetMapping("/dashboard/orderByOrderId")
+    R<OrderInfoDTO> getOrderByOrderId(@RequestParam("orderId") String orderId);
+
     @PostMapping("/dashboard/ordersByOrderIds")
     R<List<OrderInfoDTO>> getOrdersByOrderIds(@RequestBody List<String> orderIds);
 

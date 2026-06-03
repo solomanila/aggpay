@@ -98,14 +98,14 @@ public class PayReqController extends BaseController {
 				return PayUtil.extLocale(request.getLocale(), 1017);
 			} else {
 //				response.setStatus(301);
-//				response.setHeader("Location", url);
-				// 给前端JS调用准备的（sendRedirect 会带 Referer，导致部分支付网关 403）
-//				response.sendRedirect(url);
-//				return null;
+				response.setHeader("Location", url);
+				 //给前端JS调用准备的（sendRedirect 会带 Referer，导致部分支付网关 403）
+				response.sendRedirect(url);
+				return null;
 				// 临时：浏览器直接跳转，测试人员可用
-				return ResponseEntity.ok()
-						.contentType(MediaType.TEXT_HTML)
-						.body("<html><body><script>window.location.replace('" + url + "');</script></body></html>");
+//				return ResponseEntity.ok()
+//						.contentType(MediaType.TEXT_HTML)
+//						.body("<html><body><script>window.location.replace('" + url + "');</script></body></html>");
 			}
 		} else if (result.getKey().compareTo(PayCallMethod.sdk) == 0) {
 			String url = result.getValue();
