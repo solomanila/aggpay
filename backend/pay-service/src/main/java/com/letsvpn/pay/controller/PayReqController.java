@@ -8,6 +8,7 @@ import com.letsvpn.common.core.util.AuthContextHolder;
 import com.letsvpn.pay.service.core.PayReqService;
 import com.letsvpn.pay.util.KeyValue;
 import com.letsvpn.pay.util.PayCallMethod;
+import com.letsvpn.pay.vo.PayResultData;
 import com.letsvpn.pay.util.PayConstant;
 import com.letsvpn.pay.util.PayUtil;
 import org.slf4j.Logger;
@@ -84,15 +85,15 @@ public class PayReqController extends BaseController {
 		logger.info("IP:{},REQ:{},URL:{},uri:{},qs:{}", ip, paramsMap, request.getRequestURL(), request.getRequestURI(),
 				request.getQueryString());
 
-		KeyValue<PayCallMethod, String> result = payReqService.req(paramsMap, validateSign(paramsMap), ip,
+		KeyValue<PayCallMethod, PayResultData> result = payReqService.req(paramsMap, validateSign(paramsMap), ip,
 				request.getRequestURL(), request.getRequestURI(), request.getQueryString(), response,userId);
 
 		if (result.getKey().compareTo(PayCallMethod.form) == 0) {
 			return ResponseEntity.ok()
 					.contentType(MediaType.TEXT_HTML)
-					.body(result.getValue());
+					.body(result.getValue().getHtml());
 		} else if (result.getKey().compareTo(PayCallMethod.redirect) == 0) {
-			String url = result.getValue();
+			String url = result.getValue().getLink();
 			if (StrUtil.isEmpty(url)) {
 //				return "获得跳转地址,请更换其他支付方式";
 				return PayUtil.extLocale(request.getLocale(), 1017);
@@ -108,7 +109,7 @@ public class PayReqController extends BaseController {
 //						.body("<html><body><script>window.location.replace('" + url + "');</script></body></html>");
 			}
 		} else if (result.getKey().compareTo(PayCallMethod.sdk) == 0) {
-			String url = result.getValue();
+			String url = result.getValue().getLink();
 			JSONObject jsonObject = new JSONObject(true);
 			if (StrUtil.isEmpty(url)) {
 				jsonObject.put("code", "-1");
@@ -116,6 +117,7 @@ public class PayReqController extends BaseController {
 				jsonObject.put("data", PayUtil.extLocale(request.getLocale(), 1018));
 			} else {
 				jsonObject.put("code", "0");
+				jsonObject.put("orderId", result.getValue().getOrderId());
 				jsonObject.put("data", url);
 			}
 			return jsonObject;

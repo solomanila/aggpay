@@ -78,7 +78,7 @@ public class PayReqService extends BaseService {
 //		return recordIdStr.substring(recordIdStr.length() - length);
 //	}
 
-	public KeyValue<PayCallMethod, String> req(Map<String, String> paramsMap, PayPlatformInfo info, String ip,
+	public KeyValue<PayCallMethod, PayResultData> req(Map<String, String> paramsMap, PayPlatformInfo info, String ip,
 											   StringBuffer requestURL, String requestURI, String queryString, HttpServletResponse response,Long uid) {
 		log.info("{}", JSONUtil.toJsonStr(info));
 		payRateLimitService.checkGlobalTps();
@@ -155,7 +155,9 @@ public class PayReqService extends BaseService {
 				String url = reqDomain + requestURI + "?" + queryString;
 				log.info("url:{}", url);
 				response.setHeader("referer", reqDomain);
-				return new KeyValue<PayCallMethod, String>(PayCallMethod.redirect, url);
+				PayResultData earlyRedirect = new PayResultData(PayCallMethod.redirect);
+				earlyRedirect.setLink(url);
+				return new KeyValue<>(PayCallMethod.redirect, earlyRedirect);
 			}
 
 		}
@@ -213,6 +215,7 @@ public class PayReqService extends BaseService {
 		}
 		PayResultData result = req.executeReq(merchantInfo, payConfigInfo, channel, param, payConfigParameters);
 		validate(result == null, "没有结果", 8006);
+		result.setOrderId(orderId);
 
 		if (order == null && result.isSaveData()) {
 			extend1 = StrUtil.isNotEmpty(result.getExtend1()) ? result.getExtend1() : extend1;
@@ -224,11 +227,11 @@ public class PayReqService extends BaseService {
 		}
 		log.debug("result:{}", JSONUtil.toJsonStr(result));
 		if (result.getMethod().compareTo(PayCallMethod.form) == 0) {
-			return new KeyValue<PayCallMethod, String>(PayCallMethod.form, result.getHtml());
+			return new KeyValue<>(PayCallMethod.form, result);
 		} else if (result.getMethod().compareTo(PayCallMethod.redirect) == 0) {
-			return new KeyValue<PayCallMethod, String>(PayCallMethod.redirect, result.getLink());
+			return new KeyValue<>(PayCallMethod.redirect, result);
 		} else if (result.getMethod().compareTo(PayCallMethod.sdk) == 0) {
-			return new KeyValue<PayCallMethod, String>(PayCallMethod.sdk, result.getLink());
+			return new KeyValue<>(PayCallMethod.sdk, result);
 		} else {
 			validate(true, "解析器不存在", 1016);
 		}

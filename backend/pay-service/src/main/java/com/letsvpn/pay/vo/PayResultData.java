@@ -22,6 +22,9 @@ public class PayResultData {
 	// 第三订单id
 	String thirdOrderId;
 
+	// 我方生成的订单号，供 Controller 放入响应
+	String orderId;
+
 	//kyc 手机号
 	String extend1;
 
@@ -48,6 +51,14 @@ public class PayResultData {
 
 	public void setThirdOrderId(String thirdOrderId) {
 		this.thirdOrderId = thirdOrderId;
+	}
+
+	public String getOrderId() {
+		return orderId;
+	}
+
+	public void setOrderId(String orderId) {
+		this.orderId = orderId;
 	}
 
 	public PayCallMethod getMethod() {
