@@ -60,7 +60,9 @@ public class SecurityConfig {
             "/api/pay/shopline/pay",
             "/api/pay/shopline/query",
             "/api/pay/shopline/refund",
-            "/api/pay/shopline/refundQuery"
+            "/api/pay/shopline/refundQuery",
+            "/api/pay/shopline/page/privacy-policy",
+            "/api/pay/shopline/page/faq"
     };
 
     // 放行通过网关访问的、聚合的各微服务的 API Docs 路径

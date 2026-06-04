@@ -73,7 +73,7 @@ public class ShoplineOAuthController {
                     + "&responseType=code"
                     + "&scope=" + URLUtil.encode(shoplineConfig.getScopes())
                     + "&redirectUri=" + encodedRedirectUri;
-            log.info("Shopline install: not installed, redirecting to auth: handle={}", handle);
+            log.info("Shopline install: not installed, redirecting to auth: handle={}", authUrl);
             response.sendRedirect(authUrl);
             return;
         }
@@ -107,7 +107,7 @@ public class ShoplineOAuthController {
         map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
         map.put("handle", "zyatestshop");
         map.put("lang", "zh-hans-cn");
-        map.put("timestamp", "1780560386741");
+        map.put("timestamp", "1780562485468");
 
 
 //        map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
