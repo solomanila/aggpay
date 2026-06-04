@@ -20,4 +20,9 @@ public interface ExtPayPlatformInfoMapper {
 
 	@Select("select * from merchant_info where pay_config_id=#{payConfigId} and  platform_id=#{platformId}")
 	MerchantInfo getMerchantInfo(@Param("payConfigId") int payConfigId, @Param("platformId") int platformId);
+
+	@Select("select a.platform_no from pay_platform_info a " +
+			"join shopline_shop_token b on a.platform_id = cast(b.shop_id as unsigned) " +
+			"where b.shop_handle = #{handle}")
+	String getPlatformNoByShopHandle(@Param("handle") String handle);
 }
