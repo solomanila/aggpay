@@ -276,6 +276,10 @@ public class ShoplinePaymentController {
         Map<String, Object> paymentMethodInstrument = new HashMap<>();
         paymentMethodInstrument.put("a", "b");
 
+        //query
+        Map<String, Object> paymentMethodInstrument1 = new HashMap<>();
+        paymentMethodInstrument1.put("orderTransactionId", "2407354205016528273910-002");
+
         // ---- 顶层请求参数 ----
         Map<String, Object> params = new HashMap<>();
         params.put("orderTransactionId", "2407354205016528273910-002");
@@ -295,7 +299,7 @@ public class ShoplinePaymentController {
         params.put("paymentOptions", paymentOptions);
         params.put("paymentMethodInstrument", paymentMethodInstrument);
 
-        String signSource = buildSignatureSourceString(params);
+        String signSource = buildSignatureSourceString(paymentMethodInstrument1);
         System.out.println("=== 待签名文本 ===");
         System.out.println(signSource);
         System.out.println();
