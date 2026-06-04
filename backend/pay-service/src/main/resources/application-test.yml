@@ -64,6 +64,7 @@ wanli:
     check: 0
 
 telegram-bot:
+  enabled: false
   token: 8360749651:AAEoN0ieATm7xqNvyRuqmqxMegG2SgYbdXA
 
 rocketmq:
