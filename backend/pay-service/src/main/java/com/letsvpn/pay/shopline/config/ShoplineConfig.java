@@ -17,8 +17,8 @@ public class ShoplineConfig {
     @Value("${shopline.public-key}")
     private String publicKey;
 
-    @Value("${shopline.platform-no}")
-    private String platformNo;
+//    @Value("${shopline.platform-no}")
+//    private String platformNo;
 
     @Value("${shopline.api-base:https://openapi.myshopline.com}")
     private String apiBase;

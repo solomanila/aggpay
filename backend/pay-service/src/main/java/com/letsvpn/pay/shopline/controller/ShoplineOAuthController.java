@@ -104,16 +104,16 @@ public class ShoplineOAuthController {
         System.out.println(System.currentTimeMillis());
 
         Map<String, String> map = new TreeMap<>();
-//        map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
-//        map.put("handle", "open001");
-//        map.put("lang", "zh-hans-cn");
-//        map.put("timestamp", "1780311147065");
-
-
         map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
-        map.put("code", "123456");
-        map.put("handle", "open001");
-        map.put("timestamp", "1780311147065");
+        map.put("handle", "zyatestshop");
+        map.put("lang", "zh-hans-cn");
+        map.put("timestamp", "1780560386741");
+
+
+//        map.put("appkey", "a3b199b51b1dbf5eec4b73ae53cdef1561b8eefb");
+//        map.put("code", "123456");
+//        map.put("handle", "open001");
+//        map.put("timestamp", "1780311147065");
 
 
         String a = "";
