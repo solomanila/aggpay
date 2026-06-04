@@ -304,7 +304,7 @@ public class ShoplinePaymentController {
         System.out.println(signSource);
         System.out.println();
 
-        String sign = signPayRequest(privateKey, params);
+        String sign = signPayRequest(privateKey, paymentMethodInstrument1);
         System.out.println("=== 签名值（pay-api-signature） ===");
         System.out.println(sign);
 
