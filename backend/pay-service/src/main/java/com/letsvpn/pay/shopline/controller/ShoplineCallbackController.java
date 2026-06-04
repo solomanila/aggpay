@@ -76,6 +76,7 @@ public class ShoplineCallbackController {
                 + "&password=12345678"
                 + "&yourAPPKey=" + URLEncoder.encode(shoplineConfig.getAppKey(), StandardCharsets.UTF_8)
                 + "&token="      + URLEncoder.encode(token.getAccessToken(), StandardCharsets.UTF_8);
+        log.info("Shopline redirecting to url={}", installUrl);
         response.sendRedirect(installUrl);
     }
 }
