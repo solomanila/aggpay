@@ -4,6 +4,7 @@ import cn.hutool.json.JSONUtil;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.dto.ShoplinePayRequest;
 import com.letsvpn.pay.shopline.dto.ShoplinePayResponse;
+import com.letsvpn.pay.shopline.dto.ShoplineQueryResponse;
 import com.letsvpn.pay.shopline.service.ShoplinePaymentService;
 import com.letsvpn.pay.shopline.util.ShoplineSignUtil;
 import lombok.RequiredArgsConstructor;
@@ -89,6 +90,56 @@ public class ShoplinePaymentController {
                 storeHandle, payRequest, clientIp, request, response);
 
         return buildResponse(resp);
+    }
+
+    @PostMapping("/query")
+    public ResponseEntity<ShoplineQueryResponse> query(
+            @RequestHeader("pay-api-signature")       String signature,
+            @RequestHeader("pay-api-timestamp")       String timestamp,
+            @RequestHeader("pay-api-idempotency-key") String idempotencyKey,
+            @RequestBody String rawBody) {
+
+        log.info("shopline query request: idempotencyKey={}", idempotencyKey);
+
+        // 1. 将原始报文解析为 Map，保留所有字段（含 Shopline 注入的随机键值对）
+        cn.hutool.json.JSONObject rawParams;
+        try {
+            rawParams = JSONUtil.parseObj(rawBody);
+        } catch (Exception e) {
+            log.warn("shopline query: parse body failed err={}", e.getMessage());
+            return buildQueryResponse(queryFail(null, "请求体解析失败"));
+        }
+
+        // 2. 验签（RSA SHA1withRSA，Shopline 公钥）；必须在业务解析前完成
+        String signSource = buildSignatureSourceString(rawParams);
+        if (!verifyPayCallback(shoplineConfig.getPublicKey(), signSource, signature)) {
+            log.warn("shopline query: RSA signature mismatch");
+            return buildQueryResponse(queryFail(null, "签名验证失败"));
+        }
+
+        // 3. 执行查询
+        String orderTransactionId = rawParams.getStr("orderTransactionId");
+        ShoplineQueryResponse resp = shoplinePaymentService.query(orderTransactionId);
+        return buildQueryResponse(resp);
+    }
+
+    private ResponseEntity<ShoplineQueryResponse> buildQueryResponse(ShoplineQueryResponse resp) {
+        String responseBody = JSONUtil.toJsonStr(resp);
+        String ts = String.valueOf(System.currentTimeMillis());
+        String respSign = ShoplineSignUtil.buildOutgoingPost(responseBody, shoplineConfig.getAppSecret(), ts);
+        return ResponseEntity.ok()
+                .header("pay-api-signature", respSign)
+                .body(resp);
+    }
+
+    private ShoplineQueryResponse queryFail(String orderTransactionId, String message) {
+        ShoplineQueryResponse resp = new ShoplineQueryResponse();
+        resp.setReturnCode("FAIL");
+        resp.setReturnMessage(message);
+        resp.setReturnMessageId(UUID.randomUUID().toString());
+        resp.setOrderTransactionId(orderTransactionId != null ? orderTransactionId : "");
+        resp.setChannelOrderTransactionId("");
+        return resp;
     }
 
     // 构造响应：body + pay-api-signature 响应头
@@ -227,9 +278,9 @@ public class ShoplinePaymentController {
 
         // ---- 顶层请求参数 ----
         Map<String, Object> params = new HashMap<>();
-        params.put("orderTransactionId", "2407354205016528273910-001");
-        params.put("referenceOrderId", "2407354205016528273910-001");
-        params.put("amount", 100);
+        params.put("orderTransactionId", "2407354205016528273910-002");
+        params.put("referenceOrderId", "2407354205016528273910-002");
+        params.put("amount", 101);
         params.put("currency", "INR");
         params.put("redirectUrl", "https://...");
         params.put("cancelUrl", "https://...");

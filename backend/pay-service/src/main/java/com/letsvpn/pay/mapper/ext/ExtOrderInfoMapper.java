@@ -11,4 +11,7 @@ public interface ExtOrderInfoMapper {
 
 	@Select("select * from order_info where platform_id=#{platformId} and front_id=#{frontId} limit 1")
 	OrderInfo getOrderInfoByFrontId(@Param("frontId") String frontId, @Param("platformId") int platformId);
+
+	@Select("select * from order_info where front_id=#{frontId} limit 1")
+	OrderInfo getOrderInfoByFrontIdOnly(@Param("frontId") String frontId);
 }

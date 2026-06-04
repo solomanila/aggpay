@@ -1,12 +1,16 @@
 package com.letsvpn.pay.shopline.service;
 
 import cn.hutool.core.util.StrUtil;
+import com.letsvpn.pay.constant.AreaTypeConstants;
+import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.entity.PayPlatformInfo;
+import com.letsvpn.pay.mapper.ext.ExtOrderInfoMapper;
 import com.letsvpn.pay.mapper.ext.ExtPayPlatformInfoMapper;
 import com.letsvpn.pay.service.core.PayReqService;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.dto.ShoplinePayRequest;
 import com.letsvpn.pay.shopline.dto.ShoplinePayResponse;
+import com.letsvpn.pay.shopline.dto.ShoplineQueryResponse;
 import com.letsvpn.pay.shopline.util.ShoplineSignUtil;
 import com.letsvpn.pay.util.KeyValue;
 import com.letsvpn.pay.util.PayCallMethod;
@@ -28,6 +32,7 @@ public class ShoplinePaymentService {
 
     private final ShoplineConfig shoplineConfig;
     private final ExtPayPlatformInfoMapper extPayPlatformInfoMapper;
+    private final ExtOrderInfoMapper extOrderInfoMapper;
     private final PayReqService payReqService;
 
     private static final long UID = 31L;
@@ -57,7 +62,7 @@ public class ShoplinePaymentService {
         // 3. 构造内部下单参数
         long now = System.currentTimeMillis();
         Map<String, String> paramsMap = new HashMap<>();
-        paramsMap.put("fid", "FT" + now);
+        paramsMap.put("fid", req.getOrderTransactionId());
         paramsMap.put("uid", String.valueOf(UID));
         paramsMap.put("amount", String.valueOf(req.getAmount()));
         paramsMap.put("pf", platformNo);
@@ -117,5 +122,59 @@ public class ShoplinePaymentService {
         resp.setOrderTransactionId(orderTransactionId);
         resp.setChannelOrderTransactionId("");
         return resp;
+    }
+
+    public ShoplineQueryResponse query(String orderTransactionId) {
+        String returnMessageId = UUID.randomUUID().toString();
+
+        OrderInfo order = extOrderInfoMapper.getOrderInfoByFrontIdOnly(orderTransactionId);
+        if (order == null) {
+            log.warn("shopline query: order not found orderTransactionId={}", orderTransactionId);
+            ShoplineQueryResponse resp = new ShoplineQueryResponse();
+            resp.setReturnCode("FAIL");
+            resp.setReturnMessage("订单不存在");
+            resp.setReturnMessageId(returnMessageId);
+            resp.setOrderTransactionId(orderTransactionId);
+            resp.setChannelOrderTransactionId("");
+            return resp;
+        }
+
+        String paymentStatus = mapOrderStatus(order.getStatus());
+
+        String currency = "";
+        if (order.getPlatformId() != null) {
+            PayPlatformInfo platformInfo = extPayPlatformInfoMapper.getPayPlatformInfoId(order.getPlatformId());
+            if (platformInfo != null) {
+                currency = StrUtil.nullToEmpty(AreaTypeConstants.currencyCode(platformInfo.getAreaType()));
+            }
+        }
+
+        log.info("shopline query: orderTransactionId={} orderId={} status={} paymentStatus={} currency={}",
+                orderTransactionId, order.getOrderId(), order.getStatus(), paymentStatus, currency);
+
+        ShoplineQueryResponse resp = new ShoplineQueryResponse();
+        resp.setReturnCode("SUCCESS");
+        resp.setReturnMessage("");
+        resp.setReturnMessageId(returnMessageId);
+        resp.setOrderTransactionId(orderTransactionId);
+        resp.setChannelOrderTransactionId(order.getOrderId());
+        resp.setPaymentStatus(paymentStatus);
+        resp.setAmount(order.getReqAmount() != null ? order.getReqAmount().longValue() : 0L);
+        resp.setCurrency(currency);
+        if ("FAILED".equals(paymentStatus)) {
+            resp.setFailCode("PAY_FAIL");
+            resp.setFailMessage(StrUtil.isNotBlank(order.getRemark()) ? order.getRemark() : "Payment failed");
+        }
+        return resp;
+    }
+
+    private String mapOrderStatus(Integer status) {
+        if (status == null) return "PROCESSING";
+        switch (status) {
+            case 1: return "SUCCEEDED";
+            case 2: return "FAILED";
+            case 3: return "CANCELLED";
+            default: return "PROCESSING";
+        }
     }
 }
