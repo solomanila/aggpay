@@ -1006,4 +1006,12 @@ public class DashboardMetricsService {
         List<OrderCallbackDTO> result = orderCallbackMapper.selectByOrderId(orderId, paramLike);
         return result != null ? result : Collections.emptyList();
     }
+
+    public List<com.letsvpn.pay.dto.MerchantRateDTO> getMerchantSuccessRates(int minutes) {
+        String startTime = LocalDateTime.now().minusMinutes(minutes)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        List<com.letsvpn.pay.dto.MerchantRateDTO> result =
+                extPayinSummaryMapper.selectMerchantSuccessRates(startTime);
+        return result != null ? result : Collections.emptyList();
+    }
 }

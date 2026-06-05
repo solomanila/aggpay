@@ -9,6 +9,8 @@ import com.letsvpn.pay.client.AdminUserAuthClient;
 import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.mapper.OrderInfoMapper;
 import com.letsvpn.pay.mapper.ext.ExtBankPayUtrMapper;
+import com.letsvpn.pay.dto.MerchantRateDTO;
+import com.letsvpn.pay.service.core.DashboardMetricsService;
 import com.letsvpn.pay.service.core.ManualCallbackService;
 import com.pengrad.telegrambot.TelegramBot;
 import com.pengrad.telegrambot.UpdatesListener;
@@ -46,6 +48,7 @@ public class TelegramBotService implements UpdatesListener {
     private final OrderInfoMapper       orderInfoMapper;
     private final ExtBankPayUtrMapper   extBankPayUtrMapper;
     private final ManualCallbackService manualCallbackService;
+    private final DashboardMetricsService dashboardMetricsService;
     private final AdminBalanceClient    adminBalanceClient;
     private final AdminUserAuthClient   adminUserAuthClient;
 
@@ -61,15 +64,13 @@ public class TelegramBotService implements UpdatesListener {
             "/n o SPXXX(代付订单号) = 手动回调\n" +
             "/n u SIXXX(代收订单号) UTR = UTR补单\n" +
             "/a q 今日收款户\n" +
-            "/doc 查看api文档";
+            "/doc 查看api文档\n" +
+            "/r [分钟] 商户代收成功率(默认5分钟)";
 
     private static final String DOC_TEXT =
             "📄 API 文档\n" +
-            "代收下单：POST /api/pay/payin/create\n" +
-            "代收查询：GET  /api/pay/payin/query?orderId=\n" +
-            "代付下单：POST /api/pay/payout/create\n" +
-            "代付查询：GET  /api/pay/payout/query?orderId=\n" +
-            "回调通知：参见对接文档 sign=MD5(params+key)";
+            "English: https://bedecked-neighbor-f5b.notion.site/ebd//25c605a959a9803788b3ce87dcecdfd8\n" +
+            "中文: https://bedecked-neighbor-f5b.notion.site/ebd//25c605a959a9807ca08fddd712a7de84";
 
     @PostConstruct
     public void init() {
@@ -105,6 +106,7 @@ public class TelegramBotService implements UpdatesListener {
                 case "/o":   routePayoutCommand(chatId, parts);  break;
                 case "/n":   routeNotifyCommand(chatId, parts);  break;
                 case "/a":   routeAccountCommand(chatId, parts); break;
+                case "/r":   handleSuccessRate(chatId, parts);   break;
                 default:
                     sendMessage((byte) 0, chatId, "❓ 未知指令，发送 /h 查看帮助");
             }
@@ -199,9 +201,15 @@ public class TelegramBotService implements UpdatesListener {
     private void handleManualCallback(long chatId, String orderId) {
         try {
             manualCallbackService.manualCallback(orderId);
-            sendMessage((byte) 0, chatId, "✅ 手动回调成功: " + orderId);
+            sendMessage((byte) 0, chatId,
+                    "orderId: " + orderId + "\ncode: 200\nmsg: success");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            sendMessage((byte) 0, chatId,
+                    "orderId: " + orderId + "\ncode: 500\nmsg: " + e.getMessage());
         } catch (Exception e) {
-            sendMessage((byte) 0, chatId, "❌ 回调失败: " + e.getMessage());
+            log.error("手动回调异常 orderId={}", orderId, e);
+            sendMessage((byte) 0, chatId,
+                    "orderId: " + orderId + "\ncode: 500\nmsg: " + e.getMessage());
         }
     }
 
@@ -284,16 +292,97 @@ public class TelegramBotService implements UpdatesListener {
         }
     }
 
+    private void handleSuccessRate(long chatId, String[] parts) {
+        int minutes = 5;
+        if (parts.length >= 2) {
+            try {
+                minutes = Integer.parseInt(parts[1]);
+                if (minutes <= 0) throw new NumberFormatException();
+            } catch (NumberFormatException e) {
+                sendMessage((byte) 0, chatId, "❌ 用法: /r [分钟数]，例如 /r 5 或 /r 30");
+                return;
+            }
+        }
+
+        List<MerchantRateDTO> rates = dashboardMetricsService.getMerchantSuccessRates(minutes);
+        if (rates.isEmpty()) {
+            sendMessage((byte) 0, chatId, "最近 " + minutes + " 分钟暂无代收订单");
+            return;
+        }
+
+        // 批量获取账号名
+        List<Integer> pids = rates.stream().map(MerchantRateDTO::getPlatformId).collect(Collectors.toList());
+        Map<Integer, String> accountMap = Collections.emptyMap();
+        try {
+            R<List<PlatformAccountDTO>> acctResp = adminUserAuthClient.getAccountsByPlatformIds(pids);
+            if (acctResp != null && acctResp.getData() != null) {
+                accountMap = acctResp.getData().stream()
+                        .filter(a -> a.getPlatformId() != null)
+                        .collect(Collectors.toMap(PlatformAccountDTO::getPlatformId,
+                                a -> a.getAccount() != null ? a.getAccount() : String.valueOf(a.getPlatformId()),
+                                (x, y) -> x));
+            }
+        } catch (Exception e) {
+            log.warn("获取商户账号失败", e);
+        }
+
+        Map<Integer, String> finalAccountMap = accountMap;
+        int finalMinutes = minutes;
+        StringBuilder sb = new StringBuilder();
+        for (MerchantRateDTO r : rates) {
+            if (sb.length() > 0) sb.append("\n=======\n");
+            String account = finalAccountMap.getOrDefault(r.getPlatformId(), String.valueOf(r.getPlatformId()));
+            sb.append("商户:").append(account).append("\n");
+            sb.append("最近").append(finalMinutes).append("分钟成功率 ")
+              .append(r.getSuccessRate() != null ? r.getSuccessRate().toPlainString() : "0.00").append("%");
+        }
+
+        String msg = sb.toString();
+        if (msg.length() <= 4096) {
+            sendMessage((byte) 0, chatId, msg);
+        } else {
+            int start = 0;
+            while (start < msg.length()) {
+                int end = Math.min(start + 4000, msg.length());
+                sendMessage((byte) 0, chatId, msg.substring(start, end));
+                start = end;
+            }
+        }
+    }
+
     // ── 旧指令（保留） ────────────────────────────────────────────────────
 
     private void handleQueryCommand(long chatId) {
-        String apiUrl = "https://my.i-pay.cc/api.php?act=query&pid=1172&key=120u10zeN6c7ORO66C7FoZ21c0Y1rhZ1";
+        List<MerchantBalanceDTO> balances;
         try {
-            String responseData = restTemplate.getForObject(apiUrl, String.class);
-            sendMessage((byte) 0, chatId, "🔍 查询结果：\n" + responseData);
+            R<List<MerchantBalanceDTO>> resp = adminBalanceClient.getAllBalances();
+            balances = (resp != null && resp.getData() != null) ? resp.getData() : Collections.emptyList();
         } catch (Exception e) {
-            log.error(">>> 接口调用失败: ", e);
-            sendMessage((byte) 0, chatId, "❌ 接口查询异常，请检查网络或配置");
+            log.error("获取所有余额失败", e);
+            sendMessage((byte) 0, chatId, "❌ 查询余额失败: " + e.getMessage());
+            return;
+        }
+        if (balances.isEmpty()) {
+            sendMessage((byte) 0, chatId, "暂无余额数据");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (MerchantBalanceDTO b : balances) {
+            if (sb.length() > 0) sb.append("\n=======\n");
+            sb.append("商户:").append(nvl(b.getAccount())).append("\n");
+            sb.append("INR 余额:").append(fmt(b.getAvailable()))
+              .append(",待结算:").append(fmt(b.getFrozen()));
+        }
+        String msg = sb.toString();
+        if (msg.length() <= 4096) {
+            sendMessage((byte) 0, chatId, msg);
+        } else {
+            int start = 0;
+            while (start < msg.length()) {
+                int end = Math.min(start + 4000, msg.length());
+                sendMessage((byte) 0, chatId, msg.substring(start, end));
+                start = end;
+            }
         }
     }
 

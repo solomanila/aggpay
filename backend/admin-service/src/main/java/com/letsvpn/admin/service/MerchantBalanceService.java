@@ -5,20 +5,23 @@ import com.letsvpn.admin.dto.MerchantBalanceOpRequest;
 import com.letsvpn.admin.entity.MerchantBalance;
 import com.letsvpn.admin.entity.MerchantBalanceLog;
 import com.letsvpn.admin.entity.MerchantChannelConfig;
+import com.letsvpn.admin.entity.SystemUserAuth;
 import com.letsvpn.admin.mapper.MerchantBalanceLogMapper;
 import com.letsvpn.admin.mapper.MerchantBalanceMapper;
 import com.letsvpn.admin.mapper.MerchantChannelConfigMapper;
+import com.letsvpn.admin.mapper.SystemUserAuthMapper;
+import com.letsvpn.common.core.dto.MerchantBalanceDTO;
 import com.letsvpn.common.core.dto.OrderInfoDTO;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +31,7 @@ public class MerchantBalanceService {
     private final MerchantBalanceMapper balanceMapper;
     private final MerchantBalanceLogMapper logMapper;
     private final MerchantChannelConfigMapper channelConfigMapper;
+    private final SystemUserAuthMapper systemUserAuthMapper;
 
     public List<MerchantBalance> listByPlatformId(Integer platformId) {
         return balanceMapper.selectList(new LambdaQueryWrapper<MerchantBalance>()
@@ -50,6 +54,8 @@ public class MerchantBalanceService {
             balance.setCurrency(currency);
             balance.setAvailable(BigDecimal.ZERO);
             balance.setFrozen(BigDecimal.ZERO);
+            balance.setPayoutAvailable(BigDecimal.ZERO);
+            balance.setPayoutFrozen(BigDecimal.ZERO);
             balanceMapper.insert(balance);
         }
         return balance;
@@ -158,6 +164,30 @@ public class MerchantBalanceService {
                 prev, prev, b.getFrozen(), b.getFrozen().add(income),
                 "订单收款", null,
                 orderInfo.getOrderId(), orderInfo.getOtherOrderId());
+    }
+
+    public List<MerchantBalanceDTO> listAllWithAccount() {
+        List<MerchantBalance> balances = balanceMapper.selectList(
+                new LambdaQueryWrapper<MerchantBalance>().eq(MerchantBalance::getCurrency, "INR"));
+        if (balances.isEmpty()) return Collections.emptyList();
+
+        List<Integer> platformIds = balances.stream()
+                .map(MerchantBalance::getPlatformId).collect(Collectors.toList());
+        Map<Integer, String> accountMap = systemUserAuthMapper.selectList(
+                        new LambdaQueryWrapper<SystemUserAuth>().in(SystemUserAuth::getPlatformId, platformIds))
+                .stream()
+                .filter(u -> u.getPlatformId() != null)
+                .collect(Collectors.toMap(SystemUserAuth::getPlatformId, SystemUserAuth::getAccount, (a, b) -> a));
+
+        return balances.stream().map(b -> {
+            MerchantBalanceDTO dto = new MerchantBalanceDTO();
+            dto.setPlatformId(b.getPlatformId());
+            dto.setCurrency(b.getCurrency());
+            dto.setAvailable(b.getAvailable());
+            dto.setFrozen(b.getFrozen());
+            dto.setAccount(accountMap.getOrDefault(b.getPlatformId(), String.valueOf(b.getPlatformId())));
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     private void writeLog(Integer platformId, String currency, String opType, BigDecimal amount,

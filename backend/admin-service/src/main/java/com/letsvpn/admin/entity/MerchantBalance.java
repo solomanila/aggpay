@@ -28,6 +28,12 @@ public class MerchantBalance {
     @TableField("frozen")
     private BigDecimal frozen;
 
+    @TableField("payout_available")
+    private BigDecimal payoutAvailable;
+
+    @TableField("payout_frozen")
+    private BigDecimal payoutFrozen;
+
     @TableField("updated_at")
     private Date updatedAt;
 }

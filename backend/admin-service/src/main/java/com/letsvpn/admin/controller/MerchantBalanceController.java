@@ -96,6 +96,12 @@ public class MerchantBalanceController {
         return R.success(dtos);
     }
 
+    /** pay-service 内部调用：查询所有商户 INR 余额（含账号） */
+    @GetMapping("/internal/all")
+    public R<List<MerchantBalanceDTO>> listAll() {
+        return R.success(service.listAllWithAccount());
+    }
+
     /** 余额流水查询 */
     @GetMapping("/logs/{platformId}")
     public R<List<MerchantBalanceLog>> logs(

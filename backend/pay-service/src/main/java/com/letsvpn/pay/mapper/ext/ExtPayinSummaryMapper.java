@@ -2,6 +2,7 @@ package com.letsvpn.pay.mapper.ext;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.letsvpn.common.core.dto.PayinSummaryRowDTO;
+import com.letsvpn.pay.dto.MerchantRateDTO;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -42,4 +43,21 @@ public interface ExtPayinSummaryMapper {
             IPage<PayinSummaryRowDTO> page,
             @Param("startTime")   String startTime,
             @Param("platformIds") List<Integer> platformIds);
+
+    @Select("""
+            SELECT
+                a.platform_id AS platformId,
+                COUNT(*) AS orderNum,
+                SUM(CASE WHEN a.status = 1 THEN 1 ELSE 0 END) AS successCount,
+                ROUND(
+                    CASE WHEN COUNT(*) = 0 THEN 0
+                    ELSE SUM(CASE WHEN a.status = 1 THEN 1 ELSE 0 END) / COUNT(*) * 100
+                    END, 2
+                ) AS successRate
+            FROM order_info a
+            WHERE a.create_time >= #{startTime}
+            GROUP BY a.platform_id
+            ORDER BY a.platform_id
+            """)
+    List<MerchantRateDTO> selectMerchantSuccessRates(@Param("startTime") String startTime);
 }

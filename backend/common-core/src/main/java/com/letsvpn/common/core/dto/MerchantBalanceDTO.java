@@ -9,4 +9,7 @@ public class MerchantBalanceDTO {
     private String     currency;
     private BigDecimal available;
     private BigDecimal frozen;
+    private BigDecimal payoutAvailable;
+    private BigDecimal payoutFrozen;
+    private String account;
 }

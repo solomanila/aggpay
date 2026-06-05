@@ -27,6 +27,11 @@ public class AdminBalanceClientFallbackFactory implements FallbackFactory<AdminB
             public R<List<MerchantBalanceDTO>> getBalancesByPlatformIds(List<Integer> platformIds) {
                 return R.success(Collections.emptyList());
             }
+
+            @Override
+            public R<List<MerchantBalanceDTO>> getAllBalances() {
+                return R.success(Collections.emptyList());
+            }
         };
     }
 }

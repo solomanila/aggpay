@@ -66,7 +66,9 @@
       "Bash(Select-Object Name, PSIsContainer)",
       "Bash(grep -E \"^-.*\\\\.\\(yml|yaml|groovy\\)$|^d.*\\\\\\\\.github\")",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "WebFetch(domain:bedecked-neighbor-f5b.notion.site)",
+      "Bash(xargs cat)"
     ]
   }
 }

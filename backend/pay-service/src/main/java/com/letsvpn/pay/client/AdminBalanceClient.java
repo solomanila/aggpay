@@ -24,4 +24,7 @@ public interface AdminBalanceClient {
     @GetMapping("/internal/byPlatformIds")
     R<List<MerchantBalanceDTO>> getBalancesByPlatformIds(
             @RequestParam("platformIds") List<Integer> platformIds);
+
+    @GetMapping("/internal/all")
+    R<List<MerchantBalanceDTO>> getAllBalances();
 }
