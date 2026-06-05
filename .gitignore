@@ -34,8 +34,6 @@ logs/
 # ======================
 .env
 .env.*
-application-prod.yml
-application-prod.yaml
 
 # ======================
 # Others
