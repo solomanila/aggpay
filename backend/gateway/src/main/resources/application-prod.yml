@@ -1,0 +1,64 @@
+server:
+  port: 8080
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: gateway
+  redis:
+    host: ${REDIS_HOST:127.0.0.1}
+    port: 6379
+    password: ${REDIS_PASSWORD:}
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:10.0.1.130:8848}
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /api/auth/(?<segment>.*)
+                replacement: /auth/${segment}
+
+        - id: pay-service
+          uri: lb://pay-service
+          predicates:
+            - Path=/api/pay/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /api/pay/(?<segment>.*)
+                replacement: /pay/${segment}
+
+        - id: admin-service
+          uri: lb://admin-service
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /api/admin/(?<segment>.*)
+                replacement: /admin/${segment}
+
+logging:
+  level:
+    root: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
