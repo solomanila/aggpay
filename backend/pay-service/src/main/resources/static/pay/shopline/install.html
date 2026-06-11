@@ -132,39 +132,17 @@
     document.getElementById('account').value  = account;
     document.getElementById('password').value = password;
 
-    function backendLog(data) {
-      fetch('/pay/shopline/bind-log', {
+    document.getElementById('bindBtn').addEventListener('click', function () {
+      var redirectUrl = 'https://' + handle + '.myshopline.com/admin/settings/payments/appInstall?appKey=' + encodeURIComponent(yourAPPKey);
+
+      // 由后端代理调用 Shopline bind.json 并记录日志，等响应后再跳转
+      fetch('/pay/shopline/bind-notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify(data)
-      }).catch(function () {});
-    }
-
-    document.getElementById('bindBtn').addEventListener('click', function () {
-      var url = 'https://' + handle + '.myshopline.com/admin/openapi/v20260901/app/notify/bind.json';
-      var reqBody = { handle: handle, app_key: yourAPPKey };
-
-      backendLog({ type: 'request', url: url, reqBody: JSON.stringify(reqBody) });
-
-      // 异步通知 Shopline 绑定成功（不阻塞跳转）
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify(reqBody)
-      }).then(function (res) {
-        var status = res.status + ' ' + res.statusText;
-        return res.text().then(function (text) {
-          backendLog({ type: 'response', status: status, resp: text });
-        });
-      }).catch(function (err) {
-        backendLog({ type: 'error', url: url, error: err ? (err.message || String(err)) : 'unknown' });
+        body: JSON.stringify({ handle: handle, appKey: yourAPPKey, token: token })
+      }).finally(function () {
+        window.location.href = redirectUrl;
       });
-
-      window.location.href =
-        'https://' + handle + '.myshopline.com/admin/settings/payments/appInstall?appKey=' + encodeURIComponent(yourAPPKey);
     });
   </script>
 </body>
