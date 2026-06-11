@@ -132,10 +132,19 @@
     document.getElementById('account').value  = account;
     document.getElementById('password').value = password;
 
+    function backendLog(data) {
+      fetch('/pay/shopline/bind-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(data)
+      }).catch(function () {});
+    }
+
     document.getElementById('bindBtn').addEventListener('click', function () {
       var url = 'https://' + handle + '.myshopline.com/admin/openapi/v20260901/app/notify/bind.json';
       var reqBody = { handle: handle, app_key: yourAPPKey };
-      console.log('[Shopline bind] 请求参数:', { url: url, token: token, body: reqBody });
+
+      backendLog({ type: 'request', url: url, reqBody: JSON.stringify(reqBody) });
 
       // 异步通知 Shopline 绑定成功（不阻塞跳转）
       fetch(url, {
@@ -146,12 +155,12 @@
         },
         body: JSON.stringify(reqBody)
       }).then(function (res) {
+        var status = res.status + ' ' + res.statusText;
         return res.text().then(function (text) {
-          console.log('[Shopline bind] 响应状态:', res.status, res.statusText);
-          console.log('[Shopline bind] 响应内容:', text);
+          backendLog({ type: 'response', status: status, resp: text });
         });
       }).catch(function (err) {
-        console.error('[Shopline bind] 请求异常:', err);
+        backendLog({ type: 'error', url: url, error: err ? (err.message || String(err)) : 'unknown' });
       });
 
       window.location.href =
