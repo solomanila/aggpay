@@ -278,12 +278,12 @@ public class ShoplinePaymentController {
 
         //query
         Map<String, Object> paymentMethodInstrument1 = new HashMap<>();
-        paymentMethodInstrument1.put("orderTransactionId", "2407354205016528273910-002");
+        paymentMethodInstrument1.put("orderTransactionId", "2407354205016528273910-003");
 
         // ---- 顶层请求参数 ----
         Map<String, Object> params = new HashMap<>();
-        params.put("orderTransactionId", "2407354205016528273910-002");
-        params.put("referenceOrderId", "2407354205016528273910-002");
+        params.put("orderTransactionId", "2407354205016528273910-003");
+        params.put("referenceOrderId", "2407354205016528273910-003");
         params.put("amount", 101);
         params.put("currency", "INR");
         params.put("redirectUrl", "https://...");
@@ -299,12 +299,12 @@ public class ShoplinePaymentController {
         params.put("paymentOptions", paymentOptions);
         params.put("paymentMethodInstrument", paymentMethodInstrument);
 
-        String signSource = buildSignatureSourceString(paymentMethodInstrument1);
+        String signSource = buildSignatureSourceString(params);
         System.out.println("=== 待签名文本 ===");
         System.out.println(signSource);
         System.out.println();
 
-        String sign = signPayRequest(privateKey, paymentMethodInstrument1);
+        String sign = signPayRequest(privateKey, params);
         System.out.println("=== 签名值（pay-api-signature） ===");
         System.out.println(sign);
 
