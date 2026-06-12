@@ -68,7 +68,8 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
       "WebFetch(domain:bedecked-neighbor-f5b.notion.site)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(Remove-Item *)"
     ]
   }
 }

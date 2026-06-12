@@ -1,5 +1,6 @@
 SHOPLINE合作伙伴应用入驻：
 
+
 1、开发者中心账户注册：https://admin.myshopline.com/user/signUp?sl_state=scene=developer
 
 2、开放平台入驻流程：https://developer.myshopline.com/docsv2/ec20/3cv5d7wpfgr6a8z5/3msx146abt1t6k7d?version=v20230901
@@ -129,3 +130,101 @@ SHOPLINE合作伙伴应用入驻：
 2. 把你的支付后端服务部署好，准备好正式和测试两个可访问的 HTTPS 地址
 
 权限下来之前可以先把授权机制和 App Bridge 文档读透，不浪费等待时间。
+
+---
+
+## 对接过程中踩过的坑
+
+### 坑一：签名验证失败（key 不匹配）
+
+**现象：** 调用 `/api/pay/shopline/pay` 返回 `签名验证失败`。
+
+**原因：** `ShoplinePaymentController.main()` 里硬编码了一套测试密钥对用于本地生成签名，但 `application-test.yml` 中 `shopline.public-key` 配置的是另一套公钥，两者不一致导致验签失败。
+
+```
+application.yml（默认）  → public-key: MIIBIjAN...zv0w/...
+application-test.yml    → public-key: MIIBIjAN...2zkSKtgm8...  ← 两者不同
+```
+
+**规则：** `main()` 方法中的密钥对必须与当前环境 `shopline.public-key` 配置一致；切换环境时两处同步更新。
+
+---
+
+### 坑二：SSL 证书不受信任（Let's Encrypt 换了新根证书）
+
+**现象：** Shopline Java 客户端报 `javax.net.ssl.SSLPeerUnverifiedException`。
+
+**原因：** Let's Encrypt 已将新证书迁移到 **ISRG Root YR** 根证书体系（中间 CA 为 YR1/YR2），该根证书尚未被大多数 Java 版本的 cacerts 收录。`--preferred-chain "ISRG Root X1"` 在完全切换后已无效。
+
+**解决方案：** 改用 **ZeroSSL**（根证书为 Sectigo，所有 Java 版本均信任）。
+
+```bash
+# 需先在 zerossl.com 注册账号，在 Developer 页面生成 EAB 凭证
+certbot certonly --webroot -w /var/www/<webroot> \
+  --server https://acme.zerossl.com/v2/DV90 \
+  --email <email> \
+  --agree-tos \
+  --eab-kid <EAB_KID> \
+  --eab-hmac-key <EAB_HMAC_KEY> \
+  -d <domain>
+
+systemctl reload nginx
+```
+
+验证根证书：
+```bash
+openssl x509 -noout -issuer -in /etc/letsencrypt/live/<domain>/chain.pem
+# 期望：issuer=... Sectigo ...
+```
+
+**附：排查 SSL 链路的正确姿势**
+```bash
+# 检查服务端实际发送了几张证书（应为 2~3 张）
+echo | openssl s_client -connect <domain>:443 -showcerts 2>/dev/null | grep -c "BEGIN CERTIFICATE"
+
+# 检查中间证书链到哪个根
+openssl x509 -noout -subject -issuer -in /etc/letsencrypt/live/<domain>/chain.pem
+```
+
+> 注意：`openssl s_client ... | grep -E "(subject|issuer)="` 只显示叶子证书信息，不能判断链路完整性，有误导性。
+
+**Nginx 续期后必须重载，建议配置自动 hook：**
+```bash
+echo -e '#!/bin/bash\nsystemctl reload nginx' > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+---
+
+### 坑三：Hostname not verified（回调 URL 用了 IP）
+
+**现象：** Shopline 回调时报 `Hostname 192.131.142.181 not verified`，证书 SAN 只有域名。
+
+**原因：** 下单时传给 Shopline 的 `notifyUrl` 用了服务器 IP，SSL 证书不覆盖 IP，回调验证失败。
+
+**规则：** 所有传给 Shopline 的回调地址必须使用 HTTPS 域名：
+```
+notifyUrl / redirectUrl / cancelUrl 必须是 https://<domain>/...，不得用 IP
+```
+
+同时注意 `ShoplineConfig.loginBaseUrl` 默认值写死了 IP，部署时必须在配置文件中显式覆盖：
+```yaml
+shopline:
+  login-base-url: https://test.zyapay.com   # test 环境
+  # login-base-url: https://pay.zyapay.com  # prod 环境
+```
+
+---
+
+### 切换域名 test.zyapay.com → pay.zyapay.com 检查清单
+
+| 项目 | 说明 |
+|---|---|
+| SSL 证书 | 用 ZeroSSL 为 `pay.zyapay.com` 申请新证书（EAB 凭证可复用同一 ZeroSSL 账号） |
+| Nginx 配置 | `server_name` 改为 `pay.zyapay.com`，证书路径同步更新，清理重复 server block |
+| application-prod.yml | `shopline.login-base-url: https://pay.zyapay.com` |
+| application-prod.yml | `shopline.redirect-uri: https://pay.zyapay.com/api/pay/shopline/callback` |
+| 下单回调 URL | `notifyUrl` / `redirectUrl` / `cancelUrl` 全部换成 `pay.zyapay.com` |
+| Shopline 后台 | 更新 App 回调域名白名单 |
+| 防火墙 | 确认 443 和 80 端口对外开放（80 用于证书续期 HTTP-01 验证） |
+| 证书续期 hook | 确认 reload-nginx.sh 存在且可执行 |
