@@ -125,9 +125,8 @@ public class ShoplinePaymentController {
     }
 
     private ResponseEntity<ShoplineQueryResponse> buildQueryResponse(ShoplineQueryResponse resp) {
-        String responseBody = JSONUtil.toJsonStr(resp);
-        String ts = String.valueOf(System.currentTimeMillis());
-        String respSign = ShoplineSignUtil.buildOutgoingPost(responseBody, shoplineConfig.getAppSecret(), ts);
+        cn.hutool.json.JSONObject respMap = JSONUtil.parseObj(JSONUtil.toJsonStr(resp));
+        String respSign = signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
         return ResponseEntity.ok()
                 .header("pay-api-signature", respSign)
                 .body(resp);
@@ -143,12 +142,10 @@ public class ShoplinePaymentController {
         return resp;
     }
 
-    // 构造响应：body + pay-api-signature 响应头
+    // 构造响应：body + pay-api-signature 响应头（SHA1withRSA，己方私钥）
     private ResponseEntity<ShoplinePayResponse> buildResponse(ShoplinePayResponse resp) {
-        String responseBody = JSONUtil.toJsonStr(resp);
-        String timestamp = String.valueOf(System.currentTimeMillis());
-        String respSign = ShoplineSignUtil.buildOutgoingPost(responseBody, shoplineConfig.getAppSecret(), timestamp);
-
+        cn.hutool.json.JSONObject respMap = JSONUtil.parseObj(JSONUtil.toJsonStr(resp));
+        String respSign = signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
         return ResponseEntity.ok()
                 .header("pay-api-signature", respSign)
                 .body(resp);

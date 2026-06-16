@@ -17,6 +17,9 @@ public class ShoplineConfig {
     @Value("${shopline.public-key}")
     private String publicKey;
 
+    @Value("${shopline.responsePrivateKey}")
+    private String responsePrivateKey;
+
 //    @Value("${shopline.platform-no}")
 //    private String platformNo;
 
