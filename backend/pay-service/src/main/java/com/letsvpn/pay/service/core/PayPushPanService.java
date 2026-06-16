@@ -158,8 +158,7 @@ public class PayPushPanService extends BaseService {
                 if (StrUtil.isBlank(extend3)) {
                     log.warn("shopline notify: extend3 blank, skip. orderId={}", info.getOrderId());
                 } else {
-                    JSONObject extend3Json = JSONUtil.parseObj(extend3);
-                    String notifyUrl = extend3Json.getStr("notifyUrl");
+                    String notifyUrl = extend3;
 
                     PayPlatformInfo platformInfo = payPlatformInfoMapper.selectById(info.getPlatformId());
                     String currency = platformInfo != null ? AreaTypeConstants.currencyCode(platformInfo.getAreaType()) : "";

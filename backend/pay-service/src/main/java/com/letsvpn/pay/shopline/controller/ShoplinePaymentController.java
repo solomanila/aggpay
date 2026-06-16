@@ -87,15 +87,8 @@ public class ShoplinePaymentController {
             return buildResponse(rejectResponse(null, "请求体解析失败"));
         }
 
-        // 3. 提取回调关键信息，存入 extend3
-        cn.hutool.json.JSONObject billingObj = rawParams.getJSONObject("billing");
-        cn.hutool.json.JSONObject personalInfo = billingObj != null ? billingObj.getJSONObject("personalInfo") : null;
-        cn.hutool.json.JSONObject extend3Obj = new cn.hutool.json.JSONObject();
-        extend3Obj.set("cancelUrl", rawParams.getStr("cancelUrl"));
-        extend3Obj.set("notifyUrl", rawParams.getStr("notifyUrl"));
-        extend3Obj.set("redirectUrl", rawParams.getStr("redirectUrl"));
-        extend3Obj.set("personalInfo", personalInfo);
-        String extend3 = JSONUtil.toJsonStr(extend3Obj);
+        // 3. 提取 notifyUrl 存入 extend3
+        String extend3 = rawParams.getStr("notifyUrl");
 
         // 4. 执行下单
         String clientIp = getClientIp(request);
