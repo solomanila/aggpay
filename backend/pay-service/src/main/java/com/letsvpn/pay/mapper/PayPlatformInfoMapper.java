@@ -18,6 +18,6 @@ import java.util.List;
 @Mapper
 public interface PayPlatformInfoMapper extends BaseMapper<PayPlatformInfo> {
 
-    @Select("SELECT a.platform_id FROM pay_platform_info a INNER JOIN shopline_shop_token b ON a.platform_no = b.shop_id")
+    @Select("SELECT a.platform_id FROM pay_platform_info a INNER JOIN shopline_shop_token b ON a.platform_no = b.shop_id COLLATE utf8mb4_unicode_ci")
     List<Integer> selectShoplinePlatformIds();
 }
