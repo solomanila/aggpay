@@ -64,7 +64,7 @@ public class ShoplinePaymentService {
         Map<String, String> paramsMap = new HashMap<>();
         paramsMap.put("fid", req.getOrderTransactionId());
         paramsMap.put("uid", String.valueOf(UID));
-        paramsMap.put("amount", String.valueOf(req.getAmount()));
+        paramsMap.put("amount", new java.math.BigDecimal(req.getAmount()).divide(java.math.BigDecimal.valueOf(100)).toPlainString());
         paramsMap.put("pf", platformNo);
         paramsMap.put("sign", "test");
         paramsMap.put("time", String.valueOf(now));
