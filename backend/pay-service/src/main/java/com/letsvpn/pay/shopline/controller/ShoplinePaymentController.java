@@ -282,8 +282,8 @@ public class ShoplinePaymentController {
 
         // ---- 顶层请求参数 ----
         Map<String, Object> params = new HashMap<>();
-        params.put("orderTransactionId", "2407354205016528273910-003");
-        params.put("referenceOrderId", "2407354205016528273910-003");
+        params.put("orderTransactionId", "2407354205016528273910-004");
+        params.put("referenceOrderId", "2407354205016528273910-004");
         params.put("amount", 101);
         params.put("currency", "INR");
         params.put("redirectUrl", "https://...");
