@@ -3,6 +3,7 @@ package com.letsvpn.pay.mapper.ext;
 import com.letsvpn.pay.entity.OrderInfo;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 public interface ExtOrderInfoMapper {
 
@@ -14,4 +15,7 @@ public interface ExtOrderInfoMapper {
 
 	@Select("select * from order_info where front_id=#{frontId} limit 1")
 	OrderInfo getOrderInfoByFrontIdOnly(@Param("frontId") String frontId);
+
+	@Update("UPDATE order_info SET extend3=#{extend3} WHERE order_id=#{orderId}")
+	int updateExtend3ByOrderId(@Param("orderId") String orderId, @Param("extend3") String extend3);
 }

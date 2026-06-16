@@ -9,9 +9,12 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.letsvpn.pay.constant.AreaTypeConstants;
 import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.entity.PayConfigChannel;
 import com.letsvpn.pay.entity.PayPlatformInfo;
+import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
+import com.letsvpn.pay.shopline.mapper.ShoplineShopTokenMapper;
 import com.letsvpn.pay.mapper.MerchantInfoMapper;
 import com.letsvpn.pay.mapper.PayConfigChannelMapper;
 import com.letsvpn.pay.mapper.PayConfigInfoMapper;
@@ -67,6 +70,9 @@ public class PayPushPanService extends BaseService {
 
 	@Autowired
 	private AdminBalanceClient adminBalanceClient;
+
+	@Autowired
+	private ShoplineShopTokenMapper shoplineShopTokenMapper;
 
 //	@Scheduled(fixedDelay = 3000, initialDelay = 10 * 1000)
 //	public void payPushOrder() {
@@ -142,7 +148,72 @@ public class PayPushPanService extends BaseService {
         record.setNoticeStatus(100);
         record.setNoticeTime(new Date());
         orderInfoService.updateByPrimaryKey(record);
+
+        // 通知 Shopline 订单终态
+        try {
+            List<Integer> shoplinePlatformIds = payPlatformInfoMapper.selectShoplinePlatformIds();
+            boolean isShopline = shoplinePlatformIds.contains(info.getPlatformId());
+            if (isShopline) {
+                String extend3 = info.getExtend3();
+                if (StrUtil.isBlank(extend3)) {
+                    log.warn("shopline notify: extend3 blank, skip. orderId={}", info.getOrderId());
+                } else {
+                    JSONObject extend3Json = JSONUtil.parseObj(extend3);
+                    String notifyUrl = extend3Json.getStr("notifyUrl");
+
+                    PayPlatformInfo platformInfo = payPlatformInfoMapper.selectById(info.getPlatformId());
+                    String currency = platformInfo != null ? AreaTypeConstants.currencyCode(platformInfo.getAreaType()) : "";
+
+                    String accessToken = null;
+                    if (platformInfo != null) {
+                        ShoplineShopToken shopToken = shoplineShopTokenMapper.selectOne(
+                                new QueryWrapper<ShoplineShopToken>().eq("shop_id", platformInfo.getPlatformNo()));
+                        if (shopToken != null) {
+                            accessToken = shopToken.getAccessToken();
+                        }
+                    }
+
+                    String amount = info.getReqAmount() != null
+                            ? String.valueOf(info.getReqAmount().multiply(BigDecimal.valueOf(100)).longValue())
+                            : "0";
+                    String shoplineStatus = mapShoplineOrderStatus(info.getStatus());
+
+                    JSONObject bodyJson = new JSONObject();
+                    bodyJson.set("amount", amount);
+                    bodyJson.set("channel_order_transaction_id", StrUtil.nullToEmpty(info.getOtherOrderId()));
+                    bodyJson.set("currency", StrUtil.nullToEmpty(currency));
+                    bodyJson.set("order_transaction_id", StrUtil.nullToEmpty(info.getFrontId()));
+                    bodyJson.set("status", shoplineStatus);
+                    String bodyStr = JSONUtil.toJsonStr(bodyJson);
+
+                    log.info("shopline notify: orderId={} notifyUrl={} body={}", info.getOrderId(), notifyUrl, bodyStr);
+
+                    String responseBody = HttpRequest.post(notifyUrl)
+                            .header("Content-Type", "application/json; charset=utf-8")
+                            .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
+                            .timeout(15000)
+                            .body(bodyStr)
+                            .execute()
+                            .body();
+
+                    log.info("shopline notify response: orderId={} response={}", info.getOrderId(), responseBody);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("shopline notify failed: orderId={} err={}", info.getOrderId(), e.getMessage(), e);
+        }
+
 	}
+
+    private String mapShoplineOrderStatus(Integer status) {
+        if (status == null) return "PROCESSING";
+        switch (status) {
+            case 1: return "SUCCEEDED";
+            case 2: return "FAILED";
+            case 3: return "CANCELLED";
+            default: return "PROCESSING";
+        }
+    }
 
 	void _pushSuccessOrderInfo(Long id, String reqid) {
 		OrderInfo info = orderInfoService.getOrderInfo(id);

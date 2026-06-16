@@ -42,7 +42,8 @@ public class ShoplinePaymentService {
                                    ShoplinePayRequest req,
                                    String clientIp,
                                    HttpServletRequest httpRequest,
-                                   HttpServletResponse httpResponse) {
+                                   HttpServletResponse httpResponse,
+                                   String extend3) {
         String returnMessageId = UUID.randomUUID().toString();
 
         // 1. 根据 storeHandle 查询 platformNo
@@ -100,7 +101,17 @@ public class ShoplinePaymentService {
             return fail(req.getOrderTransactionId(), returnMessageId, "未获得支付地址");
         }
 
-        // 6. 构造 SUCCESS 响应
+        // 6. 将 Shopline 回调信息写入 extend3
+        if (StrUtil.isNotBlank(orderId) && StrUtil.isNotBlank(extend3)) {
+            try {
+                extOrderInfoMapper.updateExtend3ByOrderId(orderId, extend3);
+                log.info("shopline pay: extend3 saved orderId={}", orderId);
+            } catch (Exception e) {
+                log.warn("shopline pay: extend3 save failed orderId={} err={}", orderId, e.getMessage());
+            }
+        }
+
+        // 7. 构造 SUCCESS 响应
         ShoplinePayResponse resp = new ShoplinePayResponse();
         resp.setReturnCode("SUCCESS");
         resp.setReturnMessage("");

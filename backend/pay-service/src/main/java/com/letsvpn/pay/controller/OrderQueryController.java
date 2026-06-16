@@ -49,7 +49,7 @@ public class OrderQueryController extends BaseController {
         String ip = getIp(request);
         payRateLimitService.checkIpLimit(ip);
 
-        // 签名验证 + 平台鉴权（含时间防重放）/**/
+        // 签名验证 + 平台鉴权（含时间防重放）/**//**/
         PayPlatformInfo platform = validateSign(paramsMap);
 
         String orderId = MapUtil.getStr(paramsMap, "orderId");
