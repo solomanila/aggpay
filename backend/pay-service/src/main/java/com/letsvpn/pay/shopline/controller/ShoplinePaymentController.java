@@ -58,6 +58,7 @@ public class ShoplinePaymentController {
             HttpServletResponse response) {
 
         log.info("shopline pay request: handle={} idempotencyKey={}", storeHandle, idempotencyKey);
+        log.info("shopline pay rawBody: handle={} body={}", storeHandle, rawBody);
 
         // 1. 将原始报文解析为 Map，保留所有字段（含 Shopline 注入的随机键值对）
         cn.hutool.json.JSONObject rawParams;
