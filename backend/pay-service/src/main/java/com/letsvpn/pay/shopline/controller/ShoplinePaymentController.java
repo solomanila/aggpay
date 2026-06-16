@@ -9,7 +9,6 @@ import com.letsvpn.pay.shopline.service.ShoplinePaymentService;
 import com.letsvpn.pay.shopline.util.ShoplineSignUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.codec.binary.Base64;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,14 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.Signature;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.*;
 
 /**
@@ -70,8 +61,8 @@ public class ShoplinePaymentController {
         }
 
         // 2. 验签（RSA SHA1withRSA，Shopline 公钥）；必须在业务解析前完成
-        String signSource = buildSignatureSourceString(rawParams);
-        if (!verifyPayCallback(shoplineConfig.getPublicKey(), signSource, signature)) {
+        String signSource = ShoplineSignUtil.buildSignatureSourceString(rawParams);
+        if (!ShoplineSignUtil.verifyPayCallback(shoplineConfig.getPublicKey(), signSource, signature)) {
             log.warn("shopline pay: RSA signature mismatch handle={}", storeHandle);
             return buildResponse(rejectResponse(null, "签名验证失败"));
         }
@@ -117,8 +108,8 @@ public class ShoplinePaymentController {
         }
 
         // 2. 验签（RSA SHA1withRSA，Shopline 公钥）；必须在业务解析前完成
-        String signSource = buildSignatureSourceString(rawParams);
-        if (!verifyPayCallback(shoplineConfig.getPublicKey(), signSource, signature)) {
+        String signSource = ShoplineSignUtil.buildSignatureSourceString(rawParams);
+        if (!ShoplineSignUtil.verifyPayCallback(shoplineConfig.getPublicKey(), signSource, signature)) {
             log.warn("shopline query: RSA signature mismatch");
             return buildQueryResponse(queryFail(null, "签名验证失败"));
         }
@@ -131,7 +122,7 @@ public class ShoplinePaymentController {
 
     private ResponseEntity<ShoplineQueryResponse> buildQueryResponse(ShoplineQueryResponse resp) {
         cn.hutool.json.JSONObject respMap = JSONUtil.parseObj(JSONUtil.toJsonStr(resp));
-        String respSign = signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
+        String respSign = ShoplineSignUtil.signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
         return ResponseEntity.ok()
                 .header("pay-api-signature", respSign)
                 .body(resp);
@@ -150,7 +141,7 @@ public class ShoplinePaymentController {
     // 构造响应：body + pay-api-signature 响应头（SHA1withRSA，己方私钥）
     private ResponseEntity<ShoplinePayResponse> buildResponse(ShoplinePayResponse resp) {
         cn.hutool.json.JSONObject respMap = JSONUtil.parseObj(JSONUtil.toJsonStr(resp));
-        String respSign = signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
+        String respSign = ShoplineSignUtil.signPayRequest(shoplineConfig.getResponsePrivateKey(), respMap);
         return ResponseEntity.ok()
                 .header("pay-api-signature", respSign)
                 .body(resp);
@@ -302,122 +293,17 @@ public class ShoplinePaymentController {
         params.put("paymentOptions", paymentOptions);
         params.put("paymentMethodInstrument", paymentMethodInstrument);
 
-        String signSource = buildSignatureSourceString(params);
+        String signSource = ShoplineSignUtil.buildSignatureSourceString(params);
         System.out.println("=== 待签名文本 ===");
         System.out.println(signSource);
         System.out.println();
 
-        String sign = signPayRequest(privateKey, params);
+        String sign = ShoplineSignUtil.signPayRequest(privateKey, params);
         System.out.println("=== 签名值（pay-api-signature） ===");
         System.out.println(sign);
 
-        boolean ok = verifyPayCallback(publicKey, signSource, sign);
+        boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, sign);
         System.out.println("=== 自验签结果 ===");
         System.out.println(ok);
-    }
-
-    /**
-     * 构建待签名文本（Shopline 付款 & 回调规范）：
-     * <ul>
-     *   <li>null 值不参与签名，空字符串参与</li>
-     *   <li>参数名字典升序排列</li>
-     *   <li>标量：key=value，多对之间用 &amp; 连接</li>
-     *   <li>List&lt;scalar&gt;：key=elem1,elem2（逗号连接）</li>
-     *   <li>List&lt;Map&gt;：每个元素递归展开，父级 key 忽略</li>
-     *   <li>Map：递归展开，父级 key 忽略</li>
-     * </ul>
-     */
-    public static String buildSignatureSourceString(Map<String, Object> params) {
-        StringBuilder sb = new StringBuilder();
-        appendSignParams(sb, params);
-        return sb.toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void appendSignParams(StringBuilder sb, Map<String, Object> sourceObj) {
-        if (sourceObj == null || sourceObj.isEmpty()) return;
-        List<String> keys = new ArrayList<>(sourceObj.keySet());
-        Collections.sort(keys);
-
-        for (String key : keys) {
-            Object value = sourceObj.get(key);
-            if (value == null) continue;
-
-            if (value instanceof List) {
-                List<?> list = (List<?>) value;
-                if (list.isEmpty()) continue;
-                if (isScalarValue(list.get(0))) {
-                    // 标量列表：key=elem1,elem2
-                    if (sb.length() > 0) sb.append("&");
-                    sb.append(key).append("=");
-                    StringJoiner joiner = new StringJoiner(",");
-                    for (Object elem : list) joiner.add(String.valueOf(elem));
-                    sb.append(joiner);
-                } else {
-                    // 对象列表：每个 Map 元素递归展开，不添加父级 key
-                    for (Object item : list) {
-                        if (item instanceof Map) {
-                            appendSignParams(sb, (Map<String, Object>) item);
-                        }
-                    }
-                }
-            } else if (value instanceof Map) {
-                // 嵌套对象：递归展开，不添加父级 key
-                appendSignParams(sb, (Map<String, Object>) value);
-            } else if (isScalarValue(value)) {
-                if (sb.length() > 0) sb.append("&");
-                sb.append(key).append("=").append(value);
-            }
-        }
-    }
-
-    private static boolean isScalarValue(Object value) {
-        return value instanceof String
-                || value instanceof Integer
-                || value instanceof Long
-                || value instanceof Float
-                || value instanceof Double
-                || value instanceof BigDecimal
-                || value instanceof Boolean;
-    }
-
-    /**
-     * 对发往 Shopline 的付款请求参数加签（己方私钥，SHA1withRSA），返回 Base64 编码签名值。
-     * 签名值需放入请求头 pay-api-signature。
-     */
-    public static String signPayRequest(String privateKey, Map<String, Object> params) {
-        String source = buildSignatureSourceString(params);
-        try {
-            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(Base64.decodeBase64(privateKey));
-            PrivateKey pk = KeyFactory.getInstance("RSA").generatePrivate(spec);
-            Signature sig = Signature.getInstance("SHA1withRSA");
-            sig.initSign(pk);
-            sig.update(source.getBytes(StandardCharsets.UTF_8));
-            return new String(Base64.encodeBase64(sig.sign()), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("Shopline pay sign failed: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 验证 Shopline 回调请求的签名（Shopline 公钥，SHA1withRSA）。
-     * rawBodyParams：从 Shopline 原始报文解析出的完整参数 Map（含随机键值对）。
-     * signedStr：来自请求头 pay-api-signature 的签名值。
-     *
-     * 注意：必须对原始报文验签后再做业务处理；Shopline 会注入随机键值对确保原始报文参与验签。
-     */
-    public static boolean verifyPayCallback(String shoplinePublicKey, String signSourceStr, String signedStr) {
-        try {
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(Base64.decodeBase64(shoplinePublicKey));
-            PublicKey pk = KeyFactory.getInstance("RSA").generatePublic(spec);
-            byte[] signed = Base64.decodeBase64(signedStr);
-            Signature sig = Signature.getInstance("SHA1withRSA");
-            sig.initVerify(pk);
-            sig.update(signSourceStr.getBytes(StandardCharsets.UTF_8));
-            return sig.verify(signed);
-        } catch (Exception e) {
-            log.warn("Shopline pay callback verify failed: {}", e.getMessage(), e);
-            return false;
-        }
     }
 }

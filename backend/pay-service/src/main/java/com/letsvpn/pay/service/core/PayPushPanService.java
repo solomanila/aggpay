@@ -13,8 +13,10 @@ import com.letsvpn.pay.constant.AreaTypeConstants;
 import com.letsvpn.pay.entity.OrderInfo;
 import com.letsvpn.pay.entity.PayConfigChannel;
 import com.letsvpn.pay.entity.PayPlatformInfo;
+import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
 import com.letsvpn.pay.shopline.mapper.ShoplineShopTokenMapper;
+import com.letsvpn.pay.shopline.util.ShoplineSignUtil;
 import com.letsvpn.pay.mapper.MerchantInfoMapper;
 import com.letsvpn.pay.mapper.PayConfigChannelMapper;
 import com.letsvpn.pay.mapper.PayConfigInfoMapper;
@@ -73,6 +75,9 @@ public class PayPushPanService extends BaseService {
 
 	@Autowired
 	private ShoplineShopTokenMapper shoplineShopTokenMapper;
+
+	@Autowired
+	private ShoplineConfig shoplineConfig;
 
 //	@Scheduled(fixedDelay = 3000, initialDelay = 10 * 1000)
 //	public void payPushOrder() {
@@ -185,11 +190,16 @@ public class PayPushPanService extends BaseService {
                     bodyJson.set("status", shoplineStatus);
                     String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-                    log.info("shopline notify: orderId={} notifyUrl={} body={}", info.getOrderId(), notifyUrl, bodyStr);
+                    String signature = ShoplineSignUtil.signPayRequest(
+                            shoplineConfig.getResponsePrivateKey(), bodyJson);
+
+                    log.info("shopline notify: orderId={} notifyUrl={} body={} signature={}",
+                            info.getOrderId(), notifyUrl, bodyStr, signature);
 
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
+                            .header("pay-api-signature", signature)
                             .timeout(15000)
                             .body(bodyStr)
                             .execute()
