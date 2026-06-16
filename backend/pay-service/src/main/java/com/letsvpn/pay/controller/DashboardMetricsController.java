@@ -290,7 +290,7 @@ public class DashboardMetricsController {
     public R<MerchantProfileDTO> createMerchant(
             @RequestParam String title,
             @RequestParam(required = false) Integer status) {
-        return R.success(dashboardMetricsService.createMerchant(title, status));
+        return R.success(dashboardMetricsService.createMerchant(title, status,2));
     }
 
     @PutMapping("/dashboard/merchantUpdate/{platformId}")

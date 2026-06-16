@@ -686,10 +686,11 @@ public class DashboardMetricsService {
         return list.stream().map(this::convertToDto).collect(Collectors.toList());
     }
 
-    public MerchantProfileDTO createMerchant(String title, Integer status) {
+    public MerchantProfileDTO createMerchant(String title, Integer status, Integer areaType) {
         PayPlatformInfo info = new PayPlatformInfo();
         info.setTitle(title);
         info.setNullify(status != null && status == 0 ? 1 : 0);
+        info.setAreaType(areaType);
         info.setPlatformNo(String.valueOf(System.currentTimeMillis()) + (int)(Math.random() * 10000));
         info.setSecretKey(UUID.randomUUID().toString().replace("-", ""));
         payPlatformInfoMapper.insert(info);
