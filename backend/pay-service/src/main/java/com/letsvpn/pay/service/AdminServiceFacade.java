@@ -7,6 +7,8 @@ import com.letsvpn.common.core.dto.MerchantChannelConfigDTO;
 import com.letsvpn.common.core.response.R;
 import com.letsvpn.pay.client.AdminMerchantClient;
 import com.letsvpn.pay.client.AdminServiceClient;
+import com.letsvpn.pay.entity.MerchantInfo;
+import com.letsvpn.pay.mapper.MerchantInfoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,6 +18,7 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +35,7 @@ public class AdminServiceFacade {
     private final AdminMerchantClient adminMerchantClient;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final MerchantInfoMapper merchantInfoMapper;
 
     /** 获取商户通道配置列表，Redis 缓存 60s。admin-service 不可达时返回空列表（降级放行）。 */
     public List<MerchantChannelConfigDTO> fetchMerchantChannelConfigs(Integer platformId, String channelType) {
@@ -99,6 +103,29 @@ public class AdminServiceFacade {
         Object platformNo = resp.getData().get("platformNo");
         if (platformNo == null) {
             throw new RuntimeException("创建 Shopline 商户响应缺少 platformNo: handle=" + handle);
+        }
+        Object platformIdObj = resp.getData().get("platformId");
+        if (platformIdObj != null) {
+            Integer platformId = ((Number) platformIdObj).intValue();
+            MerchantInfo existing = merchantInfoMapper.selectByCompositeKey(4, platformId);
+            if (existing == null) {
+                MerchantInfo merchantInfo = new MerchantInfo()
+                        .setPayConfigId(4)
+                        .setPlatformId(platformId)
+                        .setAppId("649112774550384640")
+                        .setPrivateKey("ba6a905f-3f83-42bf-aabb-33e042d60cc7")
+                        .setCreateTime(new Date())
+                        .setPrivateKey1("")
+                        .setPrivateKey2("")
+                        .setPrivateKey3("")
+                        .setPrivateKey4("");
+                merchantInfoMapper.insert(merchantInfo);
+                log.info("Shopline merchant_info inserted: handle={} platformId={}", handle, platformId);
+            } else {
+                log.info("Shopline merchant_info already exists: handle={} platformId={}", handle, platformId);
+            }
+        } else {
+            log.warn("创建 Shopline 商户响应缺少 platformId，跳过 merchant_info 写入: handle={}", handle);
         }
         return platformNo.toString();
     }
