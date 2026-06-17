@@ -59,10 +59,28 @@ public class ShoplineSignUtil {
 
     /**
      * 计算向 Shopline 发送通知时的签名。
-     * 算法：HMAC-SHA256(body, appSecret)，结果为十六进制小写字符串，放入请求头 X-Shopline-Hmac-Sha256。
+     * 算法与 Shopline 官方 debug 代码完全一致：
+     * HMAC-SHA256(body.getBytes(UTF-8), appSecret.getBytes(UTF-8))，结果转十六进制小写。
      */
     public static String buildNotifySign(String body, String appSecret) {
-        return SecureUtil.hmacSha256(appSecret).digestHex(body == null ? "" : body);
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            javax.crypto.spec.SecretKeySpec secretKey =
+                    new javax.crypto.spec.SecretKeySpec(appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            mac.init(secretKey);
+            byte[] bytes = mac.doFinal((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(bytes);
+        } catch (Exception e) {
+            throw new RuntimeException("buildNotifySign failed: " + e.getMessage(), e);
+        }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 
     public static String buildSortedMessage(Map<String, String> params, String excludeKey) {
