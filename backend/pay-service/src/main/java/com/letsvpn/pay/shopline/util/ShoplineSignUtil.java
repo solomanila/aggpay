@@ -57,7 +57,7 @@ public class ShoplineSignUtil {
         return sign;
     }
 
-    private static String buildSortedMessage(Map<String, String> params, String excludeKey) {
+    public static String buildSortedMessage(Map<String, String> params, String excludeKey) {
         return new TreeMap<>(params).entrySet().stream()
                 .filter(e -> !e.getKey().equals(excludeKey))
                 .map(e -> e.getKey() + "=" + e.getValue())
