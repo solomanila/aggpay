@@ -201,18 +201,17 @@ public class PayPushPanService extends BaseService {
 
 						String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-						String signature = ShoplineSignUtil.buildNotifySign(bodyStr, shoplineConfig.getAppSecret());
+					String signature = ShoplineSignUtil.buildNotifySign(bodyStr, shoplineConfig.getAppSecret());
 
                     String secret = shoplineConfig.getAppSecret();
-                    log.info("shopline notify: orderId={} notifyUrl={} body={} signature={} secretPrefix={}",
-                            info.getOrderId(), notifyUrl, bodyStr, signature,
-                            secret != null && secret.length() > 6 ? secret.substring(0, 6) + "..." : secret);
+                    log.info("shopline notify: orderId={} notifyUrl={} body={} signature={} appSecret={}",
+                            info.getOrderId(), notifyUrl, bodyStr, signature, secret);
 
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
-                            .header("X-Shopline-Hmac-Sha256", signature)
-//							.header("sign", signature)
+//                            .header("X-Shopline-Hmac-Sha256", signature)
+							.header("sign", signature)
                             .timeout(15000)
                             .body(bodyStr)
                             .execute()
