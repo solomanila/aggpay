@@ -178,9 +178,8 @@ public class ShoplineOAuthService {
         qw.eq("shop_handle", shopHandle);
         ShoplineShopToken existing = shoplineShopTokenMapper.selectOne(qw);
 
-        String platformNo = adminServiceFacade.createMerchantForShopline(shopHandle);
-
         if (existing == null) {
+            String platformNo = adminServiceFacade.createMerchantForShopline(shopHandle);
             ShoplineShopToken token = new ShoplineShopToken()
                     .setShopId(platformNo)
                     .setShopHandle(shopHandle)
