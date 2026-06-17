@@ -16,6 +16,7 @@ import com.letsvpn.pay.entity.PayPlatformInfo;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
 import com.letsvpn.pay.shopline.mapper.ShoplineShopTokenMapper;
+import com.letsvpn.pay.shopline.service.ShoplineOAuthService;
 import com.letsvpn.pay.shopline.util.ShoplineSignUtil;
 import com.letsvpn.pay.mapper.MerchantInfoMapper;
 import com.letsvpn.pay.mapper.PayConfigChannelMapper;
@@ -78,6 +79,9 @@ public class PayPushPanService extends BaseService {
 
 	@Autowired
 	private ShoplineConfig shoplineConfig;
+
+	@Autowired
+	private ShoplineOAuthService shoplineOAuthService;
 
 //	@Scheduled(fixedDelay = 3000, initialDelay = 10 * 1000)
 //	public void payPushOrder() {
@@ -174,6 +178,12 @@ public class PayPushPanService extends BaseService {
                                 new QueryWrapper<ShoplineShopToken>().eq("shop_id", platformInfo.getPlatformNo()));
                         if (shopToken != null) {
                             accessToken = shopToken.getAccessToken();
+							if (shoplineOAuthService.isExpired(shopToken)) {
+								// 已安装但 token 过期，刷新
+								log.info("Shopline install: token expired, refreshing: handle={}", shopToken.getShopHandle());
+								ShoplineShopToken refreshed = shoplineOAuthService.refreshToken(shopToken.getShopHandle());
+								accessToken = refreshed.getAccessToken();
+							}
                         }
                     }
 
