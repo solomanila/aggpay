@@ -2,6 +2,7 @@ package com.letsvpn.pay.shopline.controller;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.core.util.URLUtil;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.letsvpn.pay.shopline.config.ShoplineConfig;
 import com.letsvpn.pay.shopline.entity.ShoplineShopToken;
@@ -126,6 +127,35 @@ public class ShoplineOAuthController {
         String b = a.substring(0,a.length()-1);
 
         System.out.println(hmacSha256(b,"e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f"));
+
+
+
+
+        JSONObject bodyJson = new JSONObject();
+        bodyJson.set("amount", "40000");
+        bodyJson.set("channel_order_transaction_id", "");
+        bodyJson.set("currency", "INR");
+        bodyJson.set("order_transaction_id", "2407572603951792309176-301");
+        bodyJson.set("status", "SUCCEEDED");
+
+        String bodyStr = JSONUtil.toJsonStr(bodyJson);
+
+        String timestamp = "1781690540241";
+
+        String sign = ShoplineSignUtil.buildOutgoingPost(bodyStr, "e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f", timestamp);
+        String signSource = bodyStr + timestamp;
+        System.out.println(signSource);
+
+        System.out.println(hmacSha256(signSource,"e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f"));
+
+
+
+        System.out.println(sign);
+
+
+
+
+
 
 
     }

@@ -57,6 +57,14 @@ public class ShoplineSignUtil {
         return sign;
     }
 
+    /**
+     * 计算向 Shopline 发送通知时的签名。
+     * 算法：HMAC-SHA256(body, appSecret)，结果为十六进制小写字符串，放入请求头 X-Shopline-Hmac-Sha256。
+     */
+    public static String buildNotifySign(String body, String appSecret) {
+        return SecureUtil.hmacSha256(appSecret).digestHex(body == null ? "" : body);
+    }
+
     public static String buildSortedMessage(Map<String, String> params, String excludeKey) {
         return new TreeMap<>(params).entrySet().stream()
                 .filter(e -> !e.getKey().equals(excludeKey))
