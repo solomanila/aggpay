@@ -63,24 +63,10 @@ public class ShoplineSignUtil {
      * HMAC-SHA256(body.getBytes(UTF-8), appSecret.getBytes(UTF-8))，结果转十六进制小写。
      */
     public static String buildNotifySign(String body, String appSecret) {
-        try {
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            javax.crypto.spec.SecretKeySpec secretKey =
-                    new javax.crypto.spec.SecretKeySpec(appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-            mac.init(secretKey);
-            byte[] bytes = mac.doFinal((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(bytes);
-        } catch (Exception e) {
-            throw new RuntimeException("buildNotifySign failed: " + e.getMessage(), e);
-        }
-    }
-
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
+        cn.hutool.crypto.digest.HMac mac = new cn.hutool.crypto.digest.HMac(
+                cn.hutool.crypto.digest.HmacAlgorithm.HmacSHA256,
+                appSecret.getBytes(StandardCharsets.UTF_8));
+        return mac.digestHex(body == null ? "" : body, StandardCharsets.UTF_8);
     }
 
     public static String buildSortedMessage(Map<String, String> params, String excludeKey) {

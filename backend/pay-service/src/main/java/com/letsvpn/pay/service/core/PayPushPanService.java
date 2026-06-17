@@ -210,8 +210,8 @@ public class PayPushPanService extends BaseService {
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
-//                            .header("X-Shopline-Hmac-Sha256", signature)
-							.header("sign", signature)
+                            .header("X-Shopline-Hmac-Sha256", signature)
+//							.header("sign", signature)
                             .timeout(15000)
                             .body(bodyStr)
                             .execute()
@@ -225,6 +225,8 @@ public class PayPushPanService extends BaseService {
         }
 
 	}
+
+
 
     private String mapShoplineOrderStatus(Integer status) {
         if (status == null) return "PROCESSING";

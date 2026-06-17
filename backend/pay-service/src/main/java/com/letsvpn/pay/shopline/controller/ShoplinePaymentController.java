@@ -16,8 +16,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /**
@@ -173,7 +178,7 @@ public class ShoplinePaymentController {
      * 演示入口：加签 + 验签流程。
      * privateKey：己方 PKCS8 私钥（Base64）；publicKey：Shopline 公钥（Base64 X.509）。
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeyException {
         String privateKey = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDO/TD8axRYRHG+OE6WIFuHH6tyovmqVBw0J5omnvp3RiK1iCnzoJ7M11mK+a0xCshZst1gtMTI+KDPC2OYJMOjckAKSSZtM0FEm2Saq9ZyCWvJady2YsFQgaHtpsJA1YGe18f7sxsn5aCfdsQZ5Zr21OOzSD/yhS9gbIgDYQg0lTtW8w/Q6kdJgRLJfb4i01gKCseBk0v+YRDSb3FCKL0jcWMvdRVySCSXH2CC20udYNOhFSHpbfbu4zGmCAAQKhKVanFJWJYxoE3YKIKIZZ0/BqXIdY4zBQvnKY71cE35/IXDcqdlPLw6uLVzmHbe6ESWmFqc8K4UbebP6AZslvVDAgMBAAECggEARChDFRr9XANNoOFRn0WQXfIjtl/L7jY8A0B3FfiLaPMDQttPVRWytKjEp2qHiPqP9llbZBiiI7sa2JJbfSG9+fgI9loX+SVDfJ/ehL/IoUxQ3cWqE7R5C1VkSKj8lfS39eH/y/WyH3URavDkqdJdMKHxSHul8unAK/QQ5WvyE73oZos8AWRa9VWKiXnw/kJrBFfazsxvqXSWE3pNGHP4MJfuxYHGKY2bC9Z8FVKdK5h71vW1q+TPPGTZAcAoZztR/VbB34SiUaUK5NwLiRT7zXY92f8LeUF0ChizO5gZGypkhwoODdCuR4Htw7otap2eBWnFl5tfLAfUicoV/GLLgQKBgQDrDMJ/JfGol5C2OOk2RfiEiG9aWkvF+Rr3DRIPC1i5KuZcCXpZjTgn6xZDvbRkry5hcXjjy3lzOlP2hzfbF1Gyaw1LtiWEB5x3Zvu9ddKlavdUIotv+1F3ekCP1QnQiIpGq4s/qQ6PLtnrkq8e+pT+s+jX+LpJw/xmLNwYezzaUQKBgQDhcCe1e5AgvTn1y/vNkPyw+fUGS35lQblRbj1Y4YelA5kImi5pkx3iFQb6XsR1Wmn4hv9QRZhTq5cXW9JZXZZzhI9cEdFAfz7EDkyClHE4PP96dBR5gqniZLE5ubk8oiMmEcytWQWmwb+xX7/nnNPby7i6SRguCXfOiGUwJ9EdUwKBgHqDERFSxq2YKk5ARZYLTGhP8LJIZDxRBbQFNQdwY5NH//+y1Pm+OKndx6IRS+g6wtL5YQhicvATU9YoTn28ntF/KNPwoYc6rFwz6jyrH9smcLmCs+jvNlwu9V3CrbXqpSAGo7LPvA33XpCByRM9itFjFpcTRo3SQElFUobUHTixAoGAKSCA3gbwwEhFLqZMBbCRqOew37keEfLvj/+AiZp7WItTe9JE7VW9eeVEJKDtTkt0UbavFUHdDEadhdFmio8cR27DiJRnjFCqbrH9G0VhclUOdpR+t7wyqe6ctl8/f+REbUmKAYXgFg/6nK1PIT3nGI4N4U48bwmjJbaUXzikWakCgYEAsmUH21UvEZ6I6xS84U/0kol0s/wVN36skItocI00lW2X+4T+9xunvAx3xXzN2vTZ7PzYr6KV9TH7BNSG53L3x8QEqDOokE2uVNEOOs/gYFZTkavmNT5hkIZsdOj2C40bcnh1vJrZk9lf3G12B+MfVULl4RVw/XM/2Hcjrs66AeI=";
         String publicKey  = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzv0w/GsUWERxvjhOliBbhx+rcqL5qlQcNCeaJp76d0YitYgp86CezNdZivmtMQrIWbLdYLTEyPigzwtjmCTDo3JACkkmbTNBRJtkmqvWcglryWnctmLBUIGh7abCQNWBntfH+7MbJ+Wgn3bEGeWa9tTjs0g/8oUvYGyIA2EINJU7VvMP0OpHSYESyX2+ItNYCgrHgZNL/mEQ0m9xQii9I3FjL3UVckgklx9ggttLnWDToRUh6W327uMxpggAECoSlWpxSViWMaBN2CiCiGWdPwalyHWOMwUL5ymO9XBN+fyFw3KnZTy8Ori1c5h23uhElphanPCuFG3mz+gGbJb1QwIDAQAB";
 
@@ -305,5 +310,16 @@ public class ShoplinePaymentController {
         boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, sign);
         System.out.println("=== 自验签结果 ===");
         System.out.println(ok);
+
+
+        String body = "{\"amount\":\"20000\",\"channel_order_transaction_id\":\"\",\"currency\":\"INR\",\"order_transaction_id\":\"2407572782576848183813-301\",\"status\":\"SUCCEEDED\"}";
+        //String signature = request.getHeader("X-Shopline-Hmac-Sha256"); // 从请求头获取
+        String appSecret = "你的APP Secret";
+
+        System.out.println(ShoplineSignUtil.buildNotifySign(body,"e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f"));
+
+
+
+
     }
 }
