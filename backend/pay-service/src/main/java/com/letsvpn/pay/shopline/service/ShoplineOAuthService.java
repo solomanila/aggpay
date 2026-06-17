@@ -130,7 +130,8 @@ public class ShoplineOAuthService {
         signParams.put("appkey", shoplineConfig.getAppKey());
         signParams.put("handle", handle);
         signParams.put("timestamp", timestamp);
-        String sign = ShoplineSignUtil.buildOutgoing(signParams, shoplineConfig.getAppSecret());
+
+        String sign = ShoplineSignUtil.buildOutgoingPost("", shoplineConfig.getAppSecret(),timestamp);
 
         String url = "https://" + handle + ".myshopline.com/admin/oauth/token/refresh";
 
