@@ -201,20 +201,16 @@ public class PayPushPanService extends BaseService {
 
 					String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-
-					Map<String, String> map = bodyJson.toBean(Map.class);
-
-					String message = ShoplineSignUtil.buildSortedMessage(map, null);
-
 					String timestamp = String.valueOf(System.currentTimeMillis());
 
-					String sign = ShoplineSignUtil.buildOutgoingPost(message, shoplineConfig.getAppSecret(),timestamp);
+					String sign = ShoplineSignUtil.buildOutgoingPost(bodyStr, shoplineConfig.getAppSecret(), timestamp);
+					String signSource = bodyStr + timestamp;
 
 //                    String signature = ShoplineSignUtil.signPayRequest(
 //                            shoplineConfig.getResponsePrivateKey(), bodyJson);
 
-                    log.info("shopline notify: orderId={} notifyUrl={} body={} sign={}",
-                            info.getOrderId(), notifyUrl, bodyStr, sign);
+                    log.info("shopline notify: orderId={} notifyUrl={} body={} timestamp={} signSource={} sign={}",
+                            info.getOrderId(), notifyUrl, bodyStr, timestamp, signSource, sign);
 
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
