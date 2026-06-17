@@ -200,16 +200,20 @@ public class PayPushPanService extends BaseService {
                     bodyJson.set("status", shoplineStatus);
                     String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-                    String signature = ShoplineSignUtil.signPayRequest(
-                            shoplineConfig.getResponsePrivateKey(), bodyJson);
+					String timestamp = String.valueOf(System.currentTimeMillis());
+					String sign = ShoplineSignUtil.buildOutgoingPost(bodyStr, shoplineConfig.getAppSecret(),timestamp);
 
-                    log.info("shopline notify: orderId={} notifyUrl={} body={} signature={}",
-                            info.getOrderId(), notifyUrl, bodyStr, signature);
+//                    String signature = ShoplineSignUtil.signPayRequest(
+//                            shoplineConfig.getResponsePrivateKey(), bodyJson);
+
+                    log.info("shopline notify: orderId={} notifyUrl={} body={} sign={}",
+                            info.getOrderId(), notifyUrl, bodyStr, sign);
 
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
-                            .header("pay-api-signature", signature)
+                            .header("sign", sign)
+							.header("timestamp", timestamp)
                             .timeout(15000)
                             .body(bodyStr)
                             .execute()
