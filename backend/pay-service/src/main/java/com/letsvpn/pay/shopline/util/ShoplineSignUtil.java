@@ -12,6 +12,8 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -63,10 +65,25 @@ public class ShoplineSignUtil {
      * HMAC-SHA256(body.getBytes(UTF-8), appSecret.getBytes(UTF-8))，结果转十六进制小写。
      */
     public static String buildNotifySign(String body, String appSecret) {
-        cn.hutool.crypto.digest.HMac mac = new cn.hutool.crypto.digest.HMac(
-                cn.hutool.crypto.digest.HmacAlgorithm.HmacSHA256,
-                appSecret.getBytes(StandardCharsets.UTF_8));
-        return mac.digestHex(body == null ? "" : body, StandardCharsets.UTF_8);
+        try {
+            Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secret_key = new SecretKeySpec(appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            sha256_HMAC.init(secret_key);
+            byte[] bytes = sha256_HMAC.doFinal((body == null ? "" : body).getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(bytes);
+        } catch (Exception e) {
+            throw new RuntimeException("buildNotifySign failed: " + e.getMessage(), e);
+        }
+    }
+
+    public static String bytesToHex(byte[] bytes) {
+        char[] hexChars = new char[bytes.length * 2];
+        for (int i = 0; i < bytes.length; i++) {
+            int v = bytes[i] & 0xFF;
+            hexChars[i * 2]     = "0123456789abcdef".charAt(v >>> 4);
+            hexChars[i * 2 + 1] = "0123456789abcdef".charAt(v & 0x0F);
+        }
+        return new String(hexChars);
     }
 
     public static String buildSortedMessage(Map<String, String> params, String excludeKey) {

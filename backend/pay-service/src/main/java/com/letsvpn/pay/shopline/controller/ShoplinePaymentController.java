@@ -312,11 +312,22 @@ public class ShoplinePaymentController {
         System.out.println(ok);
 
 
-        String body = "{\"amount\":\"20000\",\"channel_order_transaction_id\":\"\",\"currency\":\"INR\",\"order_transaction_id\":\"2407572782576848183813-301\",\"status\":\"SUCCEEDED\"}";
+        String body = "{\"amount\":\"20000\",\"channel_order_transaction_id\":\"\",\"currency\":\"INR\",\"order_transaction_id\":\"2407572803907786409454-301\",\"status\":\"SUCCEEDED\"}";
         //String signature = request.getHeader("X-Shopline-Hmac-Sha256"); // 从请求头获取
-        String appSecret = "你的APP Secret";
+        String appSecret = "e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f";
 
         System.out.println(ShoplineSignUtil.buildNotifySign(body,"e70f73b4ab5fc302e23e7ffbcb0af54cfdf0266f"));
+
+
+
+        // 计算 HMAC-SHA256
+        Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
+        SecretKeySpec secret_key = new SecretKeySpec(appSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        sha256_HMAC.init(secret_key);
+        byte[] bytes = sha256_HMAC.doFinal(body.getBytes(StandardCharsets.UTF_8));
+        String expectedSign = ShoplineSignUtil.bytesToHex(bytes); // 转为十六进制字符串
+
+        System.out.println(expectedSign);
 
 
 
