@@ -212,7 +212,7 @@ public class PayPushPanService extends BaseService {
 
                     String secret = shoplineConfig.getAppSecret();
                     log.info("shopline notify: orderId={} notifyUrl={} body={} signature={}",
-                            info.getOrderId(), notifyUrl, bodyStr, signature);
+                            info.getOrderId(), notifyUrl, bodyStr, sign);
 
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
