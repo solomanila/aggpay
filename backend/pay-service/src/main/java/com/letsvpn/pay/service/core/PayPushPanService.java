@@ -194,21 +194,14 @@ public class PayPushPanService extends BaseService {
 
                     JSONObject bodyJson = new JSONObject();
                     bodyJson.set("amount", amount);
-                    bodyJson.set("channel_order_transaction_id", StrUtil.nullToEmpty(info.getOtherOrderId()));
+                    bodyJson.set("channel_order_transaction_id", StrUtil.isNotBlank(info.getOtherOrderId()) ? info.getOtherOrderId() : info.getOrderId());
                     bodyJson.set("currency", StrUtil.nullToEmpty(currency));
                     bodyJson.set("order_transaction_id", StrUtil.nullToEmpty(info.getFrontId()));
                     bodyJson.set("status", shoplineStatus);
 
 					String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-
-                    String signature =ShoplineSignUtil.buildSignatureSourceString(bodyJson);
-
 					String sign = ShoplineSignUtil.signPayRequest(shoplineConfig.getResponsePrivateKey(), bodyJson);
-
-					 //String signature = ShoplineSignUtil.buildNotifySign(bodyStr, shoplineConfig.getAppSecret());
-
-                    String secret = shoplineConfig.getAppSecret();
                     log.info("shopline notify: orderId={} notifyUrl={} body={} signature={}",
                             info.getOrderId(), notifyUrl, bodyStr, sign);
 

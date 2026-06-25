@@ -303,7 +303,7 @@ public class ShoplinePaymentController {
         params1.put("amount", "20000");
         params1.put("channel_order_transaction_id", "");
         params1.put("currency", "INR");
-        params1.put("order_transaction_id", "2407583580432206970873-301");
+        params1.put("order_transaction_id", "2407583646631376784526-301");
         params1.put("status", "SUCCEEDED");
 
 
@@ -314,13 +314,13 @@ public class ShoplinePaymentController {
         System.out.println(signSource);
         System.out.println();
 
-        String sign = ShoplineSignUtil.signPayRequest(privateKey, params);
+        String sign = ShoplineSignUtil.signPayRequest(privateKey, params1);
         System.out.println("=== 签名值（pay-api-signature） ===");
         System.out.println(sign);
 
 
 
-        boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, "E3AEsKui/0j9vYkTAwAiAeoO3RXQpXcYXw4vapihW4Gu+lGYnovgSg42eS10Foew4BUs8xmKpGXdmAGL/HmtcCu8idhqbkyOyH/sWGFV2amkxlHo8gKTZwTluWLruUD9zpHkzfB7p0Mr5ROO+GvCc/wpy8YpIkns6drXY4FbfMGUktv27Lond1IBcatYpPwtwiRvcVMlJX6VyOpYmiIpJNCVsC2INWpFwmXum0XiuU+5h6bkXHsG3dfmRB3lVSlD+DZAYmd4xQ4h7oj9etUcn0QwgX+ateTxZai92W8aRVyppqBO4NlYFqiPSvjJYVeOAiKuRLGgGxzvk6npBMflcg==");
+        boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, "UBwMZ0KBSoRAZ3/RtS3FVdo28drOUT/HqPHKMy8fcicHfHNnHDUMuXBVTd+oxoGv0qCuljC8W5iFGnJ2BElhjOijryz+mHiyh1aTdZoNoSrUH3gKzIYJHJs7BDWig4j6j0GR/G8CIisHEa31WdJz8oOgWSMukBodTTiz/4GFF7DK9D3s0AAJhQNidZ+o2ERRvnWZ6A2YB1Qt404aZvxAE/FoDkZo7KynqugjHdKIcwA4yCjjNxDAdcLafqEyLZCnfgdekclePEbzve6/ht5AANibhSb7qUZexVD+pvMo1CRjorjiLmH4Wp0SaXZcDQRcJXV2qImfAtcRkQli5SBFug==");
         System.out.println("=== 自验签结果 ===");
         System.out.println(ok);
 
