@@ -201,12 +201,10 @@ public class PayPushPanService extends BaseService {
 
 					String bodyStr = JSONUtil.toJsonStr(bodyJson);
 
-					Map<String, Object> map = bodyJson;
 
+                    String signature =ShoplineSignUtil.buildSignatureSourceString(bodyJson);
 
-					String signature =ShoplineSignUtil.buildSignatureSourceString(map);
-
-					String sign = ShoplineSignUtil.signPayRequest(shoplineConfig.getResponsePrivateKey(), map);
+					String sign = ShoplineSignUtil.signPayRequest(shoplineConfig.getResponsePrivateKey(), bodyJson);
 
 					 //String signature = ShoplineSignUtil.buildNotifySign(bodyStr, shoplineConfig.getAppSecret());
 
@@ -217,7 +215,7 @@ public class PayPushPanService extends BaseService {
                     String responseBody = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
-                            .header("signature ", sign)
+                            .header("signature", sign)
                             .timeout(15000)
                             .body(bodyStr)
                             .execute()

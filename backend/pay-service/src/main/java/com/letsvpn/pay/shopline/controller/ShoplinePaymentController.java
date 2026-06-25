@@ -298,7 +298,18 @@ public class ShoplinePaymentController {
         params.put("paymentOptions", paymentOptions);
         params.put("paymentMethodInstrument", paymentMethodInstrument);
 
-        String signSource = ShoplineSignUtil.buildSignatureSourceString(params);
+
+        Map<String, Object> params1 = new HashMap<>();
+        params1.put("amount", "20000");
+        params1.put("channel_order_transaction_id", "");
+        params1.put("currency", "INR");
+        params1.put("order_transaction_id", "2407583580432206970873-301");
+        params1.put("status", "SUCCEEDED");
+
+
+
+
+        String signSource = ShoplineSignUtil.buildSignatureSourceString(params1);
         System.out.println("=== 待签名文本 ===");
         System.out.println(signSource);
         System.out.println();
@@ -307,7 +318,9 @@ public class ShoplinePaymentController {
         System.out.println("=== 签名值（pay-api-signature） ===");
         System.out.println(sign);
 
-        boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, sign);
+
+
+        boolean ok = ShoplineSignUtil.verifyPayCallback(publicKey, signSource, "E3AEsKui/0j9vYkTAwAiAeoO3RXQpXcYXw4vapihW4Gu+lGYnovgSg42eS10Foew4BUs8xmKpGXdmAGL/HmtcCu8idhqbkyOyH/sWGFV2amkxlHo8gKTZwTluWLruUD9zpHkzfB7p0Mr5ROO+GvCc/wpy8YpIkns6drXY4FbfMGUktv27Lond1IBcatYpPwtwiRvcVMlJX6VyOpYmiIpJNCVsC2INWpFwmXum0XiuU+5h6bkXHsG3dfmRB3lVSlD+DZAYmd4xQ4h7oj9etUcn0QwgX+ateTxZai92W8aRVyppqBO4NlYFqiPSvjJYVeOAiKuRLGgGxzvk6npBMflcg==");
         System.out.println("=== 自验签结果 ===");
         System.out.println(ok);
 
