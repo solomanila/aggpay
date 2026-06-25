@@ -205,16 +205,16 @@ public class PayPushPanService extends BaseService {
                     log.info("shopline notify: orderId={} notifyUrl={} body={} signature={}",
                             info.getOrderId(), notifyUrl, bodyStr, sign);
 
-                    String responseBody = HttpRequest.post(notifyUrl)
+                    cn.hutool.http.HttpResponse httpResponse = HttpRequest.post(notifyUrl)
                             .header("Content-Type", "application/json; charset=utf-8")
                             .header("Authorization", "Bearer " + StrUtil.nullToEmpty(accessToken))
                             .header("signature", sign)
                             .timeout(15000)
                             .body(bodyStr)
-                            .execute()
-                            .body();
+                            .execute();
+                    String responseBody = httpResponse.body();
 
-                    log.info("shopline notify response: orderId={} response={}", info.getOrderId(), responseBody);
+                    log.info("shopline notify response: orderId={} status={} response={}", info.getOrderId(), httpResponse.getStatus(), responseBody);
                 }
             }
         } catch (Exception e) {
